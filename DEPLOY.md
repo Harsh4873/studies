@@ -56,10 +56,11 @@ by `trailingSlash` — they are served at exactly those two paths.
 ## 2. Repository setup (already done, recorded for reference)
 
 The repo is `harsh4873/studies`, public (GitHub Pages on a personal account
-requires it). Pages is configured with build type **GitHub Actions** —
-`deploy-pages.yml` runs `actions/configure-pages` with `enablement: true`, so
-the Pages site created itself on the first deploy; there was no manual
-*Settings → Pages* step.
+requires it). Pages was enabled once, by hand: **Settings → Pages → Build and
+deployment → Source: GitHub Actions**. That is the only manual step the repo
+ever needed — a workflow token cannot create the Pages site itself (the
+create API needs administration permissions Actions tokens never get), which
+is why `deploy-pages.yml` does not try.
 
 One setting that must hold: **Settings → Actions → General → Workflow
 permissions → Read and write permissions.** `refresh.yml` declares
@@ -236,7 +237,7 @@ twelve hours, and the footer timestamp on the page should agree with it.
 | Symptom | Cause |
 |---|---|
 | Page renders as unstyled HTML | Assets 404. `base` in `astro.config.mjs` no longer matches the repo name, or `dist/` is being served somewhere other than `/studies/`. |
-| Everything 404s under `/studies/` | The Pages site is gone or was switched off the *GitHub Actions* build type. Re-run `deploy-pages.yml`; `configure-pages` re-creates it. |
+| Everything 404s under `/studies/` | The Pages site is gone or was switched off the *GitHub Actions* build type. Re-select *Source: GitHub Actions* under Settings → Pages, then re-run `deploy-pages.yml`. |
 | `Cannot find module '@/data/snapshot.json'` | The build ran `astro build` without `fetch:data`. Use `npm run build`. |
 | Every study shows as new in the feed | No committed `snapshot.json`, so the diff had no baseline. Expected on a first deploy; resolves after the first `refresh.yml` run. Feed guids are permalinks, so nobody gets notified twice. |
 | Refresh job green but nothing deploys | Verdict was `unchanged` (nothing material moved) or `skip` (fixture fallback / suspicious record count). Check the job summary. |
