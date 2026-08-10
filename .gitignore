@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.astro/
+.output/
+.vercel/
+.netlify/
+
+# generated data (rebuilt by `npm run fetch:data`)
+# NOTE: fixtures/ is committed on purpose - it is the frozen test snapshot.
+src/data/
+
+# test / coverage
+coverage/
+*.tsbuildinfo
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

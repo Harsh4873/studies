@@ -1,0 +1,140 @@
+# The gate. Nothing merges that does not typecheck, pass its tests, and build.
+#
+# STEP ORDER IS LOAD-BEARING: `fetch:data` runs BEFORE `typecheck`.
+#
+# `src/data/` is git-ignored, so a fresh clone has no snapshot.json. Three
+# modules import it directly (`import snapshotJson from '@/data/snapshot.json'`
+# in index.astro, study/[slug].astro, api/studies.json.ts), and with
+# `resolveJsonModule` that is a hard module resolution: `tsc` and `astro check`
+# both fail with "Cannot find module '@/data/snapshot.json'" if the file is not
+# there yet. Running the fetch first turns that confusing type error back into
+# what it actually is - missing build input.
+#
+# The fetch itself is deliberately not a gate. It falls back to the committed
+# fixture (fixtures/arv-snapshot.json, a real 86-record capture) and exits 0
+# when upstream is unreachable, so a TAMU outage cannot redden an unrelated PR.
+# The guard step below still fails the run if that leaves nothing to build.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Per-branch. Superseded pushes are worth cancelling; nothing here writes.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Fetch build data
+        # Non-blocking; see the header. `|| true` covers the exit-1 case (no
+        # network and no usable fixture), which the next step reports properly.
+        run: npm run fetch:data || true
+
+      - name: Require build data
+        run: |
+          if [ ! -f src/data/snapshot.json ]; then
+            echo "::error::No src/data/snapshot.json. Upstream was unreachable AND the fixture fallback failed - check fixtures/arv-snapshot.json."
+            exit 1
+          fi
+          node -e '
+            const snap = JSON.parse(require("fs").readFileSync("src/data/snapshot.json", "utf8"));
+            const n = Array.isArray(snap.studies) ? snap.studies.length : 0;
+            if (n === 0) { console.error("::error::snapshot.json has zero studies; nothing to typecheck or build against."); process.exit(1); }
+            console.log(`snapshot.json: ${n} studies`);
+          '
+
+      - name: Typecheck
+        # astro check (templates, .astro files) + tsc --noEmit (everything else).
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test:run
+
+      - name: Build
+        # `astro build`, not `npm run build`: the data is already fetched, and
+        # re-fetching would typecheck one dataset and build a different one.
+        run: npx astro build
+
+      - name: Verify the published artifacts exist
+        # Cheap, but it catches the failure this project is most exposed to: a
+        # route quietly disappearing from the build. A static host serves a 404
+        # for a missing file without complaint, and a feed that 404s looks to a
+        # subscriber exactly like a feed with no new studies.
+        run: |
+          set -euo pipefail
+          for f in dist/index.html dist/rss.xml dist/api/studies.json; do
+            [ -s "$f" ] || { echo "::error::missing or empty build output: $f"; exit 1; }
+          done
+          node -e '
+            const fs = require("fs");
+            const api = JSON.parse(fs.readFileSync("dist/api/studies.json", "utf8"));
+            if (!Array.isArray(api.studies) || api.studies.length === 0) throw new Error("api/studies.json has no studies");
+            const rss = fs.readFileSync("dist/rss.xml", "utf8");
+            if (!rss.startsWith("<?xml")) throw new Error("rss.xml is not XML");
+            // Unbalanced tags mean malformed XML, which every reader rejects.
+            const open = (rss.match(/<item>/g) || []).length;
+            const close = (rss.match(/<\/item>/g) || []).length;
+            if (open !== close) throw new Error(`rss.xml has ${open} <item> vs ${close} </item>`);
+            console.log(`api: ${api.studies.length} studies, rss: ${open} items`);
+          '
+
+      - name: No contact addresses in the published output
+        # The promise ContactButton.astro is built around: coordinators'
+        # personal @tamu.edu addresses agreed to be on a university
+        # recruitment page, not in a bulk-scrapeable mirror. The component
+        # tokenises them out of the HTML and api/studies.json.ts redacts them
+        # from the JSON, but both are easy to undo by accident - a new field
+        # spread into the payload, a `mailto:` added to a card, an address a
+        # coordinator pasted into a free-text compensation string.
+        #
+        # So the guarantee is asserted where it actually has to hold: the
+        # built artifact. Greps every file in dist/, including rss.xml, which
+        # nothing else checks.
+        #
+        # `dist/.prerender/` is excluded, and only that. It is Astro's internal
+        # SSR staging bundle - it embeds the whole snapshot, emails included,
+        # and it is deleted on a successful build. It survives only a FAILED
+        # build, which never reaches this step and never deploys. Nothing else
+        # is exempt: if a client chunk or a vendored license blurb ever trips
+        # this, that is a human decision, not something to widen the filter for.
+        run: |
+          set -uo pipefail
+          hits=$(grep -rEoh --exclude-dir=.prerender \
+            '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' dist || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Email addresses are present in plaintext in dist/. See src/components/ContactButton.astro for why this must not ship."
+            printf '%s\n' "$hits" | sort -u | sed 's/^/  leaked: /'
+            exit 1
+          fi
+          echo "dist/ is clean: no plaintext email addresses."
+
+      - name: Upload build output
+        # Handy for inspecting a PR's rendered output without building locally.
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error

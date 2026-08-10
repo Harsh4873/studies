@@ -1,0 +1,366 @@
+---
+/**
+ * ProfilePanel - the nine-question self-report form that drives eligibility
+ * filtering.
+ *
+ * DESIGN RULES THIS COMPONENT ENFORCES
+ *
+ * 1. Every question has an explicit "Prefer not to say", and it is the
+ *    default. Unknown is a real answer here, not an empty state: the
+ *    eligibility checker turns an unanswered criterion into an 'unknown'
+ *    verdict rather than an 'ineligible' one, so a blank profile shows the
+ *    user everything and a partly-filled one only ever narrows things down
+ *    for reasons the user actually stated. A form that quietly treated
+ *    "unanswered" as "no" would hide studies people qualify for.
+ *
+ * 2. The panel renders its unanswered state on the server and fills in from
+ *    localStorage on the client. Nothing about the user is ever baked into
+ *    the static HTML, because the static HTML is the same file for everyone.
+ *
+ * 3. The privacy note is not fine print. It is in the panel body, above the
+ *    questions, in the same size as everything else, because we are asking
+ *    for pregnancy and seizure history and the user deserves to know where
+ *    that goes before they answer, not after.
+ */
+
+interface Props {
+  /** Start expanded. The study detail page opens it; the index does not. */
+  open?: boolean;
+  /** Heading level, so the panel can sit under an h1 or an h2. */
+  class?: string;
+}
+
+const { open = false, class: className = '' } = Astro.props;
+
+type Choice = { value: string; label: string };
+
+const YES_NO: Choice[] = [
+  { value: '', label: 'Prefer not to say' },
+  { value: 'true', label: 'Yes' },
+  { value: 'false', label: 'No' },
+];
+
+interface Question {
+  field: string;
+  legend: string;
+  help?: string;
+  choices: Choice[];
+}
+
+/**
+ * Wording note: each question is phrased the way the exclusion criteria are
+ * phrased in the listings, so "Yes" always means the same thing in both
+ * places and nobody has to mentally invert a double negative.
+ */
+const QUESTIONS: Question[] = [
+  {
+    field: 'rightHanded',
+    legend: 'Are you right-handed?',
+    help: 'Some brain-imaging studies enrol right-handed participants only.',
+    choices: [
+      { value: '', label: 'Prefer not to say' },
+      { value: 'true', label: 'Right-handed' },
+      { value: 'false', label: 'Left-handed or ambidextrous' },
+    ],
+  },
+  {
+    field: 'mriSafe',
+    legend: 'Can you safely have an MRI scan?',
+    help: 'Say no if you have metal in your body, an implanted device, a pacemaker, or you cannot tolerate an enclosed scanner.',
+    choices: [
+      { value: '', label: 'Prefer not to say' },
+      { value: 'true', label: 'Yes, as far as I know' },
+      { value: 'false', label: 'No, or I am not sure it is safe' },
+    ],
+  },
+  {
+    field: 'hasCardiovascularCondition',
+    legend: 'Do you have a cardiovascular condition?',
+    help: 'For example heart disease, high blood pressure, or a past cardiac event.',
+    choices: YES_NO,
+  },
+  {
+    field: 'isPregnant',
+    legend: 'Are you currently pregnant?',
+    choices: YES_NO,
+  },
+  {
+    field: 'hasSeizureHistory',
+    legend: 'Do you have a history of seizures or epilepsy?',
+    choices: YES_NO,
+  },
+  {
+    field: 'sex',
+    legend: 'Sex',
+    help: 'A handful of studies enrol one sex only. Nothing else uses this.',
+    choices: [
+      { value: '', label: 'Prefer not to say' },
+      { value: 'female', label: 'Female' },
+      { value: 'male', label: 'Male' },
+      { value: 'other', label: 'Other or intersex' },
+    ],
+  },
+  {
+    field: 'willingToFast',
+    legend: 'Would you be willing to fast before a visit?',
+    help: 'A few studies need you to arrive without having eaten.',
+    choices: YES_NO,
+  },
+  {
+    field: 'isTamuStudent',
+    legend: 'Are you a Texas A&M student?',
+    help: 'Some studies recruit through the university subject pool; a few want non-students.',
+    choices: YES_NO,
+  },
+];
+---
+
+<details class={`profile-panel rounded-lg border border-gray-300 bg-white ${className}`} open={open}>
+  <summary
+    class="cursor-pointer list-none rounded-lg px-4 py-3 font-semibold select-none hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+  >
+    <span class="mr-2 inline-block transition-transform" data-profile-caret aria-hidden="true">▸</span>
+    Your details
+    <span class="ml-2 text-sm font-normal text-gray-600" data-profile-count>
+      (not set — nothing is filtered out)
+    </span>
+  </summary>
+
+  <div class="border-t border-gray-200 px-4 py-4">
+    <!-- Privacy statement. Deliberately first, deliberately not small print. -->
+    <div class="mb-5 rounded-md border border-brand-500/40 bg-brand-50 p-3 text-sm">
+      <p class="font-semibold">This stays on your device.</p>
+      <p class="mt-1">
+        Your answers are saved in this browser's local storage and nowhere else. There is no
+        account, no server to send them to, and no analytics on this page. Clearing your browser
+        data, or pressing <em>Clear my details</em> below, erases them permanently.
+      </p>
+      <p class="mt-2">
+        What you enter is only used to sort listings into "looks like a fit", "probably not", and
+        "cannot tell". That is a
+        <strong>reading of the wording on each listing, not a medical or official determination</strong>.
+        Only the study team can say whether you qualify, and they will screen you themselves.
+      </p>
+    </div>
+
+    <noscript>
+      <p class="mb-4 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm">
+        This form needs JavaScript, because saving and matching both happen entirely in your
+        browser. Without it every listing is shown unfiltered, which is the safe default.
+      </p>
+    </noscript>
+
+    <form data-profile-form class="grid gap-5 sm:grid-cols-2">
+      <!-- Age: free entry, with an explicit way to un-answer it. -->
+      <fieldset class="sm:col-span-2">
+        <legend class="text-sm font-semibold">How old are you?</legend>
+        <p class="mt-0.5 text-sm text-gray-600">
+          Nearly every listing states an age range, so this is the single most useful answer.
+        </p>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            type="number"
+            inputmode="numeric"
+            min="0"
+            max="120"
+            step="1"
+            data-profile-field="age"
+            aria-label="Your age in years"
+            placeholder="Prefer not to say"
+            class="w-44 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500"
+          />
+          <button
+            type="button"
+            data-profile-clear-age
+            class="rounded-md border border-gray-300 px-2 py-1.5 text-sm hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500"
+          >
+            Prefer not to say
+          </button>
+        </div>
+      </fieldset>
+
+      {
+        QUESTIONS.map((q) => (
+          <fieldset>
+            <legend class="text-sm font-semibold">{q.legend}</legend>
+            {q.help && <p class="mt-0.5 text-sm text-gray-600">{q.help}</p>}
+            <div class="mt-2 flex flex-col gap-1">
+              {q.choices.map((c) => (
+                <label class="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name={`profile-${q.field}`}
+                    value={c.value}
+                    data-profile-field={q.field}
+                    checked={c.value === ''}
+                    class="h-4 w-4"
+                  />
+                  <span class={c.value === '' ? 'text-gray-600' : ''}>{c.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))
+      }
+    </form>
+
+    <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-gray-200 pt-4">
+      <button
+        type="button"
+        data-profile-clear
+        class="rounded-md border border-gray-400 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      >
+        Clear my details
+      </button>
+      <span class="text-sm text-gray-600" data-profile-status role="status" aria-live="polite"></span>
+    </div>
+  </div>
+</details>
+
+<script>
+  import {
+    PROFILE_FIELD_COUNT,
+    answeredCount,
+    clearProfile,
+    hasStorage,
+    setProfile,
+    subscribe,
+  } from '@/lib/profile.ts';
+  import type { Sex, UserProfile } from '@/types.ts';
+
+  const TRISTATE_FIELDS = [
+    'rightHanded',
+    'mriSafe',
+    'hasCardiovascularCondition',
+    'isPregnant',
+    'hasSeizureHistory',
+    'willingToFast',
+    'isTamuStudent',
+  ] as const;
+
+  type TristateField = (typeof TRISTATE_FIELDS)[number];
+
+  function isTristateField(name: string): name is TristateField {
+    return (TRISTATE_FIELDS as readonly string[]).includes(name);
+  }
+
+  /** '' means "prefer not to say" and must land as null, never as false. */
+  function toTristate(raw: string): boolean | null {
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return null;
+  }
+
+  function toSex(raw: string): Sex | null {
+    return raw === 'male' || raw === 'female' || raw === 'other' ? raw : null;
+  }
+
+  let panelIndex = 0;
+
+  for (const panel of document.querySelectorAll<HTMLElement>('.profile-panel')) {
+    const form = panel.querySelector<HTMLFormElement>('[data-profile-form]');
+    const status = panel.querySelector<HTMLElement>('[data-profile-status]');
+    const count = panel.querySelector<HTMLElement>('[data-profile-count]');
+    const caret = panel.querySelector<HTMLElement>('[data-profile-caret]');
+    if (!form) continue;
+
+    // Radio `name` is a document-wide grouping key, so two panels on one page
+    // would share groups and de-select each other. Scope the names per
+    // instance at runtime rather than baking an index into the static HTML.
+    const scope = panelIndex++;
+    if (scope > 0) {
+      for (const input of form.querySelectorAll<HTMLInputElement>('input[type="radio"][name]')) {
+        input.name = `${input.name}-${scope}`;
+      }
+    }
+
+    // Guards against the write-then-read-then-rewrite loop: `subscribe` fires
+    // on every change, including ones this panel just made.
+    let applying = false;
+
+    const render = (profile: UserProfile): void => {
+      applying = true;
+      try {
+        const age = form.querySelector<HTMLInputElement>('input[data-profile-field="age"]');
+        if (age && document.activeElement !== age) {
+          age.value = profile.age === null ? '' : String(profile.age);
+        }
+
+        for (const input of form.querySelectorAll<HTMLInputElement>(
+          'input[type="radio"][data-profile-field]',
+        )) {
+          const field = input.dataset['profileField'] ?? '';
+          let current = '';
+          if (field === 'sex') {
+            current = profile.sex ?? '';
+          } else if (isTristateField(field)) {
+            const v = profile[field];
+            current = v === null ? '' : String(v);
+          }
+          input.checked = input.value === current;
+        }
+      } finally {
+        applying = false;
+      }
+
+      const n = answeredCount(profile);
+      if (count) {
+        count.textContent =
+          n === 0
+            ? '(not set — nothing is filtered out)'
+            : `(${n} of ${PROFILE_FIELD_COUNT} answered)`;
+      }
+      if (status) {
+        status.textContent = hasStorage()
+          ? n === 0
+            ? 'Nothing saved yet.'
+            : 'Saved in this browser only.'
+          : 'This browser is blocking local storage, so answers last until you leave the page.';
+      }
+    };
+
+    const onInput = (event: Event): void => {
+      if (applying) return;
+      const el = event.target;
+      if (!(el instanceof HTMLInputElement)) return;
+      const field = el.dataset['profileField'];
+      if (!field) return;
+
+      if (field === 'age') {
+        const raw = el.value.trim();
+        // An out-of-range or nonsense entry is sanitized to null by
+        // setProfile rather than silently corrected to a boundary value.
+        setProfile({ age: raw === '' ? null : Number(raw) });
+        return;
+      }
+      if (!el.checked) return;
+      if (field === 'sex') {
+        setProfile({ sex: toSex(el.value) });
+      } else if (isTristateField(field)) {
+        setProfile({ [field]: toTristate(el.value) } as Partial<UserProfile>);
+      }
+    };
+
+    form.addEventListener('change', onInput);
+    form.addEventListener('input', onInput);
+
+    panel.querySelector('[data-profile-clear-age]')?.addEventListener('click', () => {
+      setProfile({ age: null });
+    });
+
+    panel.querySelector('[data-profile-clear]')?.addEventListener('click', () => {
+      clearProfile();
+      if (status) status.textContent = 'Cleared. Nothing about you is stored on this device.';
+    });
+
+    if (caret) {
+      const syncCaret = (): void => {
+        caret.textContent = (panel as HTMLDetailsElement).open ? '▾' : '▸';
+      };
+      panel.addEventListener('toggle', syncCaret);
+      syncCaret();
+    }
+
+    subscribe(render);
+  }
+</script>

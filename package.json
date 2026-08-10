@@ -1,0 +1,30 @@
+{
+  "name": "studies-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browsable, hourly-pay-ranked index of Texas A&M paid research study listings.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "npm run fetch:data && astro build",
+    "preview": "astro preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "fetch:data": "node --experimental-strip-types scripts/fetch-data.ts",
+    "typecheck": "astro check && tsc --noEmit"
+  },
+  "dependencies": {
+    "astro": "7.2.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "22.19.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

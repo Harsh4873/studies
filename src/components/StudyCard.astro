@@ -1,0 +1,324 @@
+---
+/**
+ * One study listing.
+ *
+ * Renders as an `<li>` carrying every value the client-side filter script
+ * needs as a data attribute, so filtering never has to re-parse the DOM text
+ * and no second copy of the dataset has to be shipped to the browser.
+ *
+ * Honesty rules encoded here:
+ *   - guaranteed pay and raffle prizes are rendered by different components in
+ *     different colours, and the raffle line always says "not guaranteed";
+ *   - an unparsed field says so, rather than being filled with a plausible
+ *     default;
+ *   - anything the parser flagged as low confidence exposes its own reasoning
+ *     and the original wording from the listing.
+ */
+import RateBadge from '@/components/RateBadge.astro';
+import { decodeEntities, stripHtml } from '@/lib/html.ts';
+import { scrubEmails } from '@/lib/mailto.ts';
+import type { StudyRecord } from '@/types.ts';
+
+interface Props {
+  study: StudyRecord;
+  /** Resolved taxonomy names, already looked up by the page. */
+  locations: string[];
+  sessionTypes: string[];
+}
+
+const { study, locations, sessionTypes } = Astro.props;
+const comp = study.compensation;
+const dur = study.duration;
+const elig = study.eligibility;
+
+// ---------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------
+
+function usd(n: number): string {
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r)
+    ? `$${r.toLocaleString('en-US')}`
+    : `$${r.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function hours(h: number): string {
+  if (h < 1) return `${Math.round(h * 60)} min`;
+  const rounded = Math.round(h * 10) / 10;
+  return `${rounded}h`;
+}
+
+function weeks(w: number): string {
+  if (w < 1.5) return '1 week';
+  if (w < 9) return `${Math.round(w)} weeks`;
+  const months = Math.round(w / 4.345);
+  return `${months} month${months === 1 ? '' : 's'}`;
+}
+
+const CURRENCY_SUFFIX: Record<string, string> = {
+  cash: 'in cash',
+  giftcard: 'in gift cards',
+  credit: 'as course credit',
+  mixed: 'in cash and/or gift cards',
+  unknown: '',
+};
+
+/** "$60 guaranteed in gift cards", "up to $820", "None listed". */
+function payLine(): { text: string; unknown: boolean } {
+  const { guaranteedMin: lo, guaranteedMax: hi } = comp;
+  const suffix = CURRENCY_SUFFIX[comp.currencyKind] ?? '';
+  const tail = suffix === '' ? '' : ` ${suffix}`;
+
+  if (typeof hi === 'number' && hi > 0) {
+    if (lo === null) return { text: `up to ${usd(hi)}${tail}`, unknown: false };
+    if (lo === hi) return { text: `${usd(hi)}${tail}`, unknown: false };
+    return { text: `${usd(lo)}–${usd(hi)}${tail}`, unknown: false };
+  }
+  if (typeof lo === 'number' && lo > 0) return { text: `at least ${usd(lo)}${tail}`, unknown: false };
+  if (comp.raffleOnly) return { text: 'prize drawing entry only', unknown: true };
+  if (hi === 0 || /^\s*none\s*$/i.test(comp.raw)) return { text: 'none listed', unknown: true };
+  return { text: 'not stated in the listing', unknown: true };
+}
+
+/** "2 sessions, ~4h total, over 1 week". */
+function timeLine(): { text: string; unknown: boolean } {
+  const parts: string[] = [];
+
+  if (typeof dur.sessionCount === 'number' && dur.sessionCount > 0) {
+    parts.push(`${dur.sessionCount} session${dur.sessionCount === 1 ? '' : 's'}`);
+  }
+
+  const lo = dur.totalHoursMin;
+  const hi = dur.totalHoursMax;
+  if (typeof hi === 'number' && hi > 0) {
+    parts.push(typeof lo === 'number' && lo > 0 && lo !== hi ? `~${hours(lo)}–${hours(hi)}` : `~${hours(hi)}`);
+  } else if (typeof lo === 'number' && lo > 0) {
+    parts.push(`~${hours(lo)}`);
+  }
+
+  if (typeof dur.spanWeeks === 'number' && dur.spanWeeks > 0) {
+    parts.push(`over ${weeks(dur.spanWeeks)}`);
+  }
+
+  if (parts.length === 0) return { text: 'not stated in the listing', unknown: true };
+  return { text: parts.join(', '), unknown: false };
+}
+
+function ageLine(): string {
+  const { minAge: lo, maxAge: hi } = elig;
+  if (hi === null) return lo > 0 ? `${lo} and over` : 'any age';
+  if (lo <= 0) return `${hi} and under`;
+  return `${lo}–${hi}`;
+}
+
+const TAG_LABEL: Record<string, string> = {
+  online: 'Online',
+  'in-person': 'In person',
+  mri: 'MRI',
+  eeg: 'EEG',
+  'vr-ar': 'VR / AR',
+  'focus-group': 'Focus group',
+  survey: 'Survey',
+  interview: 'Interview',
+  clinical: 'Clinical',
+  hci: 'Human-computer interaction',
+};
+
+const STALENESS_BADGE: Record<string, { text: string; title: string }> = {
+  fresh: { text: 'Fresh', title: 'IRB approval is recent, so this posting is probably current.' },
+  aging: { text: 'Aging', title: 'IRB approval is 9-18 months old. Confirm the study is still recruiting.' },
+  stale: { text: 'Stale', title: 'IRB approval is over 18 months old. Quite likely finished - worth an email anyway.' },
+  expired: { text: 'Posting expired', title: 'The listing’s own expiration date has passed, but TAMU is still serving it.' },
+};
+
+// ---------------------------------------------------------------------------
+// Derived display values
+// ---------------------------------------------------------------------------
+
+const pay = payLine();
+const time = timeLine();
+const badge = STALENESS_BADGE[study.staleness] ?? STALENESS_BADGE.expired!;
+
+const hasRaffle = typeof comp.raffleMax === 'number' && comp.raffleMax > 0;
+
+const perks: string[] = [];
+if (comp.perVisit !== null) {
+  perks.push(
+    comp.visitCount !== null
+      ? `${usd(comp.perVisit)} per visit × ${comp.visitCount}`
+      : `${usd(comp.perVisit)} per visit`,
+  );
+}
+if (comp.completionBonus !== null && comp.completionBonus > 0) {
+  perks.push(`${usd(comp.completionBonus)} completion bonus`);
+}
+if (comp.hasNonCashPerk) perks.push('plus a non-cash perk');
+if (comp.sonaCreditOption) perks.push('SONA credit alternative');
+
+const place = [...new Set(locations.map(decodeEntities))].join(', ');
+const sessions = [...new Set(sessionTypes.map(decodeEntities))].join(', ');
+
+// Flags that describe a hard requirement get the amber chip; the rest are grey.
+const REQUIREMENT_RE = /(required|excludes|only|condition-gated|screening|must|no\b)/i;
+const MAX_FLAGS = 6;
+const shownFlags = elig.flags.slice(0, MAX_FLAGS);
+const extraFlags = elig.flags.length - shownFlags.length;
+
+// `raw` is straight out of WordPress meta: it carries `<br>` and `<u>` tags.
+// stripHtml maps block tags to a space so amounts never fuse together.
+// scrubEmails keeps coordinators' personal addresses out of the static HTML,
+// matching the policy ContactButton enforces - free-text fields occasionally
+// carry an address even though none do in the current snapshot.
+const rawComp = scrubEmails(stripHtml(comp.raw)).trim();
+const rawDur = scrubEmails(stripHtml(dur.raw)).trim();
+
+/** Local detail page for this study. Must respect the /r/studies base path. */
+const detailHref = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/study/${study.slug}/`;
+
+const showParseNote =
+  comp.confidence !== 'high' || dur.confidence === 'low' || comp.notes.length > 0 || comp.raw.length > 140;
+
+// -- filter payload ---------------------------------------------------------
+const hoursForFilter = dur.totalHoursMax ?? dur.totalHoursMin;
+const isOnline = study.tags.includes('online');
+const isInPerson = study.tags.includes('in-person');
+// The search haystack is emitted as a data- attribute, so it is plaintext in
+// dist/index.html. Upstream sometimes puts an address in a *name* field (study
+// 8458's contactName is `mpkj.engelen@ctral.org`), so the whole haystack is
+// scrubbed, not just the free-text fields. Replacement is '' rather than the
+// default marker so the placeholder text never becomes a search term.
+const searchText = scrubEmails(
+  [
+    study.title,
+    study.summary,
+    study.piName ?? '',
+    study.contactName ?? '',
+    study.irbNumber ?? '',
+    place,
+    sessions,
+    study.tags.map((t) => TAG_LABEL[t] ?? t).join(' '),
+    elig.flags.join(' '),
+  ].join(' '),
+  '',
+)
+  .toLowerCase()
+  .replace(/\s+/g, ' ')
+  .trim();
+---
+
+<li
+  class:list={['card', study.isExpired && 'card-dead']}
+  data-study
+  data-id={study.id}
+  data-rate={study.effectiveHourly === null ? '' : String(study.effectiveHourly)}
+  data-total={typeof comp.guaranteedMax === 'number' ? String(comp.guaranteedMax) : ''}
+  data-hours={typeof hoursForFilter === 'number' ? String(hoursForFilter) : ''}
+  data-online={isOnline ? '1' : '0'}
+  data-inperson={isInPerson ? '1' : '0'}
+  data-tags={study.tags.join(' ')}
+  data-expired={study.isExpired ? '1' : '0'}
+  data-posted={Date.parse(study.postedDate) || 0}
+  data-search={searchText}
+>
+  <div class="card-top">
+    <div>
+      <p style="margin:0 0 0.375rem">
+        <span class:list={['badge', `badge-${study.staleness}`]} title={badge.title}>{badge.text}</span>
+      </p>
+      <h3 class="card-title">
+        <a href={detailHref}>{study.title}</a>
+      </h3>
+    </div>
+    <RateBadge rate={study.effectiveHourly} compensation={comp} />
+  </div>
+
+  {study.summary !== '' && <p class="card-summary">{study.summary}</p>}
+
+  <dl class="facts">
+    <div>
+      <dt>Pay</dt>
+      <dd class:list={[pay.unknown ? 'money-unknown' : 'money']}>
+        {pay.text}
+        {perks.length > 0 && <span class="money-unknown"> ({perks.join('; ')})</span>}
+      </dd>
+    </div>
+    <div>
+      <dt>Time</dt>
+      <dd class:list={[time.unknown && 'money-unknown']}>{time.text}</dd>
+    </div>
+    <div>
+      <dt>Ages</dt>
+      <dd>{ageLine()}</dd>
+    </div>
+    {
+      place !== '' && (
+        <div>
+          <dt>Where</dt>
+          <dd>{place}{sessions !== '' && <> &middot; {sessions}</>}</dd>
+        </div>
+      )
+    }
+  </dl>
+
+  {
+    hasRaffle && (
+      <p class="chance">
+        <b>Prize drawing: up to {usd(comp.raffleMax as number)}</b>
+        <span class="chance-caveat">
+          &mdash; a chance, not guaranteed pay{comp.raffleOnly ? ', and the only compensation offered' : ''}.
+        </span>
+      </p>
+    )
+  }
+
+  {
+    (study.tags.length > 0 || shownFlags.length > 0) && (
+      <ul class="chips">
+        {study.tags.map((t) => (
+          <li class="chip">{TAG_LABEL[t] ?? t}</li>
+        ))}
+        {shownFlags.map((f) => (
+          <li class:list={['chip', REQUIREMENT_RE.test(f) && 'chip-req']}>{f}</li>
+        ))}
+        {extraFlags > 0 && <li class="chip">+{extraFlags} more criteria</li>}
+      </ul>
+    )
+  }
+
+  <p class="verdict" data-verdict hidden></p>
+
+  {
+    showParseNote && (
+      <details class="parse-note">
+        <summary>
+          What the listing actually says
+          {comp.confidence === 'low' && <> (pay figures are a low-confidence guess)</>}
+        </summary>
+        {comp.notes.length > 0 && (
+          <ul>
+            {comp.notes.map((n) => (
+              <li>{n}</li>
+            ))}
+          </ul>
+        )}
+        {rawComp !== '' && (
+          <p>
+            <strong>Compensation:</strong> {rawComp}
+          </p>
+        )}
+        {rawDur !== '' && (
+          <p>
+            <strong>Duration:</strong> {rawDur}
+          </p>
+        )}
+      </details>
+    )
+  }
+
+  <p class="card-foot">
+    <span>{study.irbNumber ?? 'No IRB number'}</span>
+    <a class="go" href={study.url} rel="noopener external">
+      Original listing on research.tamu.edu &nearr;
+    </a>
+  </p>
+</li>

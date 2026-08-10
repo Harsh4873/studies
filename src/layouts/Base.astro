@@ -1,0 +1,83 @@
+---
+/**
+ * Page shell: landmarks, metadata, theming, and the global stylesheet.
+ *
+ * Every internal URL is built off `import.meta.env.BASE_URL` because the site
+ * is served from https://harsh.bet/r/studies/ - a root-relative "/" would 404.
+ */
+import '@/styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+  /** ISO timestamp of the build-time data pull, shown in the footer. */
+  fetchedAt?: string;
+  /** Number of listings in this build, shown in the footer. */
+  studyCount?: number;
+}
+
+const { title, description, fetchedAt, studyCount } = Astro.props;
+
+// BASE_URL is '/r/studies/' in this project; normalise to a single trailing '/'.
+const base = import.meta.env.BASE_URL.replace(/\/*$/, '/');
+const canonical = new URL(base, Astro.site ?? 'https://harsh.bet').href;
+
+const fetchedLabel =
+  fetchedAt === undefined
+    ? null
+    : new Date(fetchedAt).toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'America/Chicago',
+      });
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex, follow" />
+    <link rel="canonical" href={canonical} />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%24%3C/text%3E%3C/svg%3E"
+    />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#results">Skip to results</a>
+    <slot name="header" />
+    <slot />
+    <footer class="site-footer">
+      <div class="wrap">
+        <p>
+          Unofficial index of paid research studies listed by Texas A&amp;M University. Every
+          listing links back to the canonical page on <a
+            href="https://research.tamu.edu/study/"
+            rel="noopener external">research.tamu.edu</a
+          >, which is the authority on whether a study is still recruiting.
+        </p>
+        <p>
+          Pay and time figures are parsed from free-text fields written by study staff. They can be
+          wrong. Treat the hourly rate as a sorting aid, not a promise, and confirm details with the
+          study contact before committing time.
+        </p>
+        {
+          fetchedLabel !== null && (
+            <p>
+              Data pulled {fetchedLabel} (US Central)
+              {studyCount !== undefined && <> &middot; {studyCount} listings</>}. Rebuild the site to
+              refresh; nothing on this page is fetched live.
+            </p>
+          )
+        }
+      </div>
+    </footer>
+  </body>
+</html>

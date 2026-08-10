@@ -1,0 +1,801 @@
+@import 'tailwindcss';
+
+/* Tailwind v4 loads JS config only when pointed at it explicitly. */
+@config '../../tailwind.config.mjs';
+
+/*
+ * Design tokens live here (CSS-first config). Extend this block rather than
+ * hardcoding hex values in components.
+ */
+@theme {
+  --color-brand-50: oklch(0.97 0.02 150);
+  --color-brand-500: oklch(0.55 0.13 150);
+  --color-brand-700: oklch(0.42 0.11 150);
+
+  /* Staleness scale - mirrors the `Staleness` union in src/types.ts. */
+  --color-fresh: oklch(0.62 0.15 150);
+  --color-aging: oklch(0.75 0.15 85);
+  --color-stale: oklch(0.68 0.16 55);
+  --color-expired: oklch(0.58 0.02 260);
+}
+
+/* ==========================================================================
+   Semantic palette.
+
+   Light and dark are both authored by hand rather than derived, because the
+   single most important visual property of this site is that GUARANTEED PAY
+   and RAFFLE/DRAWING PRIZES never look alike. Guaranteed money is the only
+   thing allowed to use the green "money" ramp; a drawing is always the
+   dashed violet "chance" treatment with an explicit "not guaranteed" label.
+
+   Every foreground/background pair below was picked to clear WCAG AA (4.5:1
+   for body text, 3:1 for large text and UI borders) in both schemes.
+   ========================================================================== */
+:root {
+  color-scheme: light dark;
+
+  --bg: #f4f5f3;
+  --surface: #ffffff;
+  --surface-2: #f0f1ef;
+  --text: #14171a;
+  --muted: #53585e;
+  --border: #d5d8dc;
+  --border-strong: #b3b8bf;
+  --focus: #0b57d0;
+  --link: #0b4fbd;
+
+  /* Guaranteed money. Green is RESERVED for this. */
+  --money-fg: #0a5c2e;
+  --money-bg: #e3f5e9;
+  --money-border: #96cfae;
+
+  /* Rate buckets (guaranteed $/hr). */
+  --rate-great-fg: #05421f;
+  --rate-great-bg: #c9edd7;
+  --rate-good-fg: #0a5c2e;
+  --rate-good-bg: #e3f5e9;
+  --rate-ok-fg: #0f4f66;
+  --rate-ok-bg: #dff0f7;
+  --rate-low-fg: #6b4400;
+  --rate-low-bg: #fbeed3;
+
+  /* Unpaid: a known, honest zero. Not "unknown". */
+  --zero-fg: #4a4f55;
+  --zero-bg: #e9eaec;
+
+  /* Unknown / unrankable. Never green, never a number we cannot defend. */
+  --unknown-fg: #4a4f55;
+  --unknown-bg: #eceef0;
+
+  /* Raffle / drawing. Must never read as money in hand. */
+  --chance-fg: #59308f;
+  --chance-bg: #f2ebfb;
+  --chance-border: #b592e0;
+
+  /* Staleness. */
+  --fresh-fg: #0a5c2e;
+  --fresh-bg: #e3f5e9;
+  --aging-fg: #6b4400;
+  --aging-bg: #fbeed3;
+  --stale-fg: #7a3708;
+  --stale-bg: #fbe6d6;
+  --dead-fg: #4a4f55;
+  --dead-bg: #e6e7e9;
+
+  --chip-fg: #33383e;
+  --chip-bg: #eef0f2;
+  --chip-border: #d3d7db;
+
+  --warn-fg: #7a3708;
+  --warn-bg: #fdf2e6;
+  --warn-border: #e7bd8d;
+
+  --radius: 12px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1013;
+    --surface: #181b1f;
+    --surface-2: #1f2328;
+    --text: #e8eaec;
+    --muted: #a7aeb6;
+    --border: #2d3238;
+    --border-strong: #454c54;
+    --focus: #8ab4f8;
+    --link: #9ec1ff;
+
+    --money-fg: #7ee2a8;
+    --money-bg: #10301f;
+    --money-border: #2f6a48;
+
+    --rate-great-fg: #8ff0b6;
+    --rate-great-bg: #123b25;
+    --rate-good-fg: #7ee2a8;
+    --rate-good-bg: #10301f;
+    --rate-ok-fg: #8dd4ee;
+    --rate-ok-bg: #102b36;
+    --rate-low-fg: #f2c97a;
+    --rate-low-bg: #33260e;
+
+    --zero-fg: #b6bcc3;
+    --zero-bg: #24282d;
+
+    --unknown-fg: #b6bcc3;
+    --unknown-bg: #24282d;
+
+    --chance-fg: #d3b6f5;
+    --chance-bg: #241a35;
+    --chance-border: #5d4288;
+
+    --fresh-fg: #7ee2a8;
+    --fresh-bg: #10301f;
+    --aging-fg: #f2c97a;
+    --aging-bg: #33260e;
+    --stale-fg: #f5b98a;
+    --stale-bg: #38220f;
+    --dead-fg: #b0b6bd;
+    --dead-bg: #23272b;
+
+    --chip-fg: #ccd2d8;
+    --chip-bg: #23272c;
+    --chip-border: #343a41;
+
+    --warn-fg: #f5c48f;
+    --warn-bg: #2e2113;
+    --warn-border: #6b4b23;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: var(--link);
+}
+
+/* Visible focus everywhere, including inside cards and native controls. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 50;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--focus);
+  border-radius: 0 0 var(--radius) 0;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+   Header / footer
+   -------------------------------------------------------------------------- */
+.site-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 0 0.875rem;
+}
+.site-title {
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.site-sub {
+  margin: 0.375rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.site-footer {
+  margin-top: 2.5rem;
+  padding: 1.25rem 0 3rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.site-footer p {
+  margin: 0 0 0.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   Filter bar
+   -------------------------------------------------------------------------- */
+.filters {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin: 0.75rem 0;
+  box-shadow: var(--shadow);
+}
+.filters > * + * {
+  margin-top: 0.75rem;
+}
+.field {
+  display: block;
+}
+.field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.control {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.625rem;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+.control::placeholder {
+  color: var(--muted);
+}
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+@media (min-width: 40rem) {
+  .field-row-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+.chip-set {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.chip-toggle {
+  appearance: none;
+  min-height: 36px;
+  padding: 0.375rem 0.75rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--chip-fg);
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.chip-toggle[aria-pressed='true'] {
+  color: var(--surface);
+  background: var(--text);
+  border-color: var(--text);
+  font-weight: 650;
+}
+
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  min-height: 44px;
+  padding: 0.25rem 0;
+}
+.switch-row input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  margin: 0.125rem 0 0;
+  flex: none;
+  accent-color: var(--focus);
+}
+.switch-row .switch-text {
+  font-size: 0.9375rem;
+}
+.switch-row .switch-hint {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.switch-row input:disabled + .switch-text {
+  opacity: 0.65;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.btn {
+  appearance: none;
+  min-height: 40px;
+  padding: 0.5rem 0.875rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Result counter
+   -------------------------------------------------------------------------- */
+.result-count {
+  font-size: 0.875rem;
+  color: var(--muted);
+  padding: 0.25rem 0.125rem 0;
+}
+.result-count strong {
+  color: var(--text);
+}
+.note {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Sections + cards
+   -------------------------------------------------------------------------- */
+.section {
+  margin-top: 1.5rem;
+}
+.section-head {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+.section-note {
+  margin: 0 0 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  box-shadow: var(--shadow);
+}
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.card-title {
+  margin: 0 0 0.375rem;
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.card-title a {
+  color: var(--text);
+  text-decoration: none;
+}
+.card-title a:hover {
+  text-decoration: underline;
+}
+/*
+ * No whole-card click overlay: the card carries two distinct destinations -
+ * the local detail page and the original TAMU listing - and an overlay would
+ * swallow one of them. The title is the primary target and is sized for a
+ * thumb; the outbound link is separately labelled in the footer.
+ */
+.card {
+  position: relative;
+}
+.card-foot a.go {
+  color: var(--link);
+  text-decoration: none;
+  padding: 0.25rem 0;
+}
+.card-foot a.go:hover {
+  text-decoration: underline;
+}
+.card-summary {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.facts {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.facts div {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.1875rem 0;
+}
+.facts dt {
+  flex: none;
+  width: 5.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  padding-top: 0.0625rem;
+}
+.facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.money {
+  font-weight: 650;
+  color: var(--money-fg);
+}
+.money-unknown {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* The chance treatment. Dashed, violet, never green, always labelled. */
+.chance {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.375rem;
+  margin-top: 0.5rem;
+  padding: 0.3125rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--chance-fg);
+  background: var(--chance-bg);
+  border: 1px dashed var(--chance-border);
+  border-radius: 8px;
+}
+.chance b {
+  font-weight: 650;
+}
+.chance .chance-caveat {
+  font-weight: 400;
+  opacity: 0.95;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3125rem;
+  margin: 0.625rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.chip {
+  display: inline-block;
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--chip-fg);
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: 999px;
+}
+.chip-req {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
+}
+
+.badge {
+  display: inline-block;
+  flex: none;
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge-fresh {
+  color: var(--fresh-fg);
+  background: var(--fresh-bg);
+}
+.badge-aging {
+  color: var(--aging-fg);
+  background: var(--aging-bg);
+}
+.badge-stale {
+  color: var(--stale-fg);
+  background: var(--stale-bg);
+}
+.badge-expired {
+  color: var(--dead-fg);
+  background: var(--dead-bg);
+  border: 1px solid var(--border-strong);
+}
+
+/* Rate badge -------------------------------------------------------------- */
+.rate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  padding: 0.3125rem 0.5rem;
+  border-radius: 10px;
+  text-align: right;
+  min-width: 4.5rem;
+}
+.rate-value {
+  font-size: 1.0625rem;
+  font-weight: 750;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.rate-unit {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+.rate-great {
+  color: var(--rate-great-fg);
+  background: var(--rate-great-bg);
+}
+.rate-good {
+  color: var(--rate-good-fg);
+  background: var(--rate-good-bg);
+}
+.rate-ok {
+  color: var(--rate-ok-fg);
+  background: var(--rate-ok-bg);
+}
+.rate-low {
+  color: var(--rate-low-fg);
+  background: var(--rate-low-bg);
+}
+.rate-zero {
+  color: var(--zero-fg);
+  background: var(--zero-bg);
+}
+.rate-unknown {
+  color: var(--unknown-fg);
+  background: var(--unknown-bg);
+  border: 1px dashed var(--border-strong);
+}
+.rate-chance {
+  color: var(--chance-fg);
+  background: var(--chance-bg);
+  border: 1px dashed var(--chance-border);
+}
+.rate-chance .rate-value,
+.rate-unknown .rate-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  margin-top: 0.625rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.card-foot .go {
+  font-weight: 600;
+}
+
+.parse-note {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.parse-note summary {
+  cursor: pointer;
+  min-height: 32px;
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+}
+.parse-note ul {
+  margin: 0.375rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.verdict {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 8px;
+}
+.verdict-ineligible {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+}
+.verdict-unknown {
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+/* Expired treatment: dimmed, desaturated, and behind a disclosure. */
+.expired-block {
+  margin-top: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 0.5rem 0.625rem;
+}
+.expired-block > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  padding: 0.5rem 0.125rem;
+}
+.expired-block .section-note {
+  margin-top: 0.25rem;
+}
+.card-dead {
+  filter: grayscale(0.85);
+  opacity: 0.72;
+}
+.card-dead:hover,
+.card-dead:focus-within {
+  opacity: 1;
+}
+
+.empty {
+  margin-top: 1rem;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+.empty h2 {
+  margin: 0 0 0.375rem;
+  font-size: 1rem;
+}
+.empty p {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   ProfilePanel dark-mode patch.
+
+   ProfilePanel is owned by another agent and is styled with light-only
+   Tailwind utilities (bg-white, text-gray-600, ...). Rather than edit a file
+   outside this agent's scope, the utilities are overridden here by descendant
+   selectors, which outrank single-class utilities. If that component later
+   grows its own `dark:` variants, this block becomes a harmless no-op and can
+   be deleted.
+   -------------------------------------------------------------------------- */
+.profile-panel-index {
+  margin: 0.75rem 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .profile-panel {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .profile-panel .bg-white {
+    background: var(--surface);
+  }
+  .profile-panel .text-gray-600,
+  .profile-panel .text-gray-500 {
+    color: var(--muted);
+  }
+  .profile-panel .border-gray-200,
+  .profile-panel .border-gray-300,
+  .profile-panel .border-gray-400 {
+    border-color: var(--border-strong);
+  }
+  .profile-panel .bg-gray-50,
+  .profile-panel .bg-brand-50 {
+    background: var(--surface-2);
+  }
+  .profile-panel .hover\:bg-gray-50:hover {
+    background: var(--surface-2);
+  }
+  .profile-panel .bg-amber-50 {
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+  }
+  .profile-panel .border-amber-400 {
+    border-color: var(--warn-border);
+  }
+  .profile-panel input,
+  .profile-panel select,
+  .profile-panel button {
+    color: var(--text);
+    background: var(--surface-2);
+    border-color: var(--border-strong);
+  }
+  .profile-panel input[type='radio'],
+  .profile-panel input[type='checkbox'] {
+    accent-color: var(--focus);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -1,0 +1,580 @@
+---
+/**
+ * Study detail page - one prerendered page per study in the snapshot.
+ *
+ * The point of this page is auditability. Every number shown elsewhere on the
+ * site (the $/hr ranking especially) is the output of a heuristic parser
+ * reading free text that dozens of different labs wrote in dozens of different
+ * ways. So this page shows the parse AND the text it was parsed from, side by
+ * side, under "Source text". If the parser says $25/hr and the listing says
+ * something else, the user can see that in one click instead of trusting us.
+ *
+ * The eligibility verdict is computed in the browser, never at build time: the
+ * profile lives in localStorage and the HTML is one shared static file. The
+ * server-rendered baseline is the all-unanswered verdict, which is the correct
+ * thing to show someone with JavaScript off.
+ */
+import { decodeEntities } from '@/lib/html.ts';
+import { checkEligibility } from '@/lib/parse-eligibility.ts';
+import { rateBucket, type RateBucket } from '@/lib/effective-rate.ts';
+import { EMPTY_PROFILE } from '@/lib/profile.ts';
+import { scrubEmails } from '@/lib/mailto.ts';
+import ProfilePanel from '@/components/ProfilePanel.astro';
+import ContactButton from '@/components/ContactButton.astro';
+import snapshotJson from '@/data/snapshot.json';
+import taxonomiesJson from '@/data/taxonomies.json';
+import type { Snapshot, StudyRecord, TaxonomyTerm } from '@/types.ts';
+import '@/styles/global.css';
+
+const snapshot = snapshotJson as unknown as Snapshot;
+const taxonomies = taxonomiesJson as unknown as Record<string, Record<string, TaxonomyTerm>>;
+
+export function getStaticPaths() {
+  const snap = snapshotJson as unknown as Snapshot;
+  return snap.studies.map((study) => ({
+    params: { slug: study.slug },
+    props: { study },
+  }));
+}
+
+interface Props {
+  study: StudyRecord;
+}
+
+const { study } = Astro.props;
+
+// ---------------------------------------------------------------------------
+// Small formatting helpers. Local on purpose - this page owns its presentation
+// and should not grow a shared util that other agents' files would depend on.
+// ---------------------------------------------------------------------------
+
+const BASE = import.meta.env.BASE_URL.replace(/\/+$/, '');
+const link = (path: string): string => `${BASE}/${path.replace(/^\/+/, '')}`.replace(/\/*$/, '/');
+
+const usd = (n: number | null): string =>
+  n === null ? 'not stated' : `$${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
+
+const day = (iso: string | null): string => {
+  if (!iso) return 'not stated';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'not stated';
+  return d.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+};
+
+const hours = (n: number | null): string =>
+  n === null ? '' : `${Number.isInteger(n) ? n : n.toFixed(1)} ${n === 1 ? 'hour' : 'hours'}`;
+
+/** Taxonomy term ids -> display names. Names arrive HTML-encoded upstream. */
+const terms = (kind: string, ids: number[]): string[] => {
+  const map = taxonomies[kind] ?? {};
+  return ids
+    .map((id) => map[String(id)]?.name)
+    .filter((n): n is string => typeof n === 'string' && n.length > 0)
+    .map((n) => decodeEntities(n));
+};
+
+const categories = terms('category', study.categoryIds);
+const locations = terms('location', study.locationIds);
+const sessionTypes = terms('sessionType', study.sessionTypeIds);
+const topics = terms('topic', study.topicIds);
+
+// ---------------------------------------------------------------------------
+// Derived display values
+// ---------------------------------------------------------------------------
+
+const c = study.compensation;
+const d = study.duration;
+const e = study.eligibility;
+
+const bucket: RateBucket = rateBucket(study.effectiveHourly);
+const BUCKET_STYLE: Record<RateBucket, string> = {
+  unknown: 'bg-gray-100 text-gray-700 border-gray-300',
+  low: 'bg-gray-100 text-gray-800 border-gray-300',
+  ok: 'bg-amber-50 text-amber-900 border-amber-300',
+  good: 'bg-brand-50 text-brand-700 border-brand-500',
+  great: 'bg-brand-50 text-brand-700 border-brand-700',
+};
+
+/** Human summary of the guaranteed pay, kept separate from raffle value. */
+function payHeadline(): string {
+  if (c.isHourlyRate && c.hourlyMin !== null) {
+    return c.hourlyMax !== null && c.hourlyMax !== c.hourlyMin
+      ? `${usd(c.hourlyMin)}-${usd(c.hourlyMax)} per hour`
+      : `${usd(c.hourlyMin)} per hour`;
+  }
+  if (c.guaranteedMin !== null || c.guaranteedMax !== null) {
+    const lo = c.guaranteedMin;
+    const hi = c.guaranteedMax;
+    if (lo !== null && hi !== null && lo !== hi) return `${usd(lo)}-${usd(hi)}`;
+    return usd(hi ?? lo);
+  }
+  if (c.raffleOnly && c.raffleMax !== null) return `Raffle entry only (prize up to ${usd(c.raffleMax)})`;
+  if (c.sonaCreditOption) return 'Course credit';
+  return 'Not stated';
+}
+
+function durationHeadline(): string {
+  if (d.totalHoursMin !== null && d.totalHoursMax !== null) {
+    return d.totalHoursMin === d.totalHoursMax
+      ? hours(d.totalHoursMin)
+      : `${d.totalHoursMin}-${hours(d.totalHoursMax)}`;
+  }
+  if (d.totalHoursMax !== null) return `up to ${hours(d.totalHoursMax)}`;
+  if (d.totalHoursMin !== null) return `at least ${hours(d.totalHoursMin)}`;
+  if (d.sessionCount !== null) return `${d.sessionCount} session${d.sessionCount === 1 ? '' : 's'}`;
+  return 'Not stated';
+}
+
+const CURRENCY_LABEL: Record<string, string> = {
+  cash: 'cash or direct payment',
+  giftcard: 'gift card',
+  credit: 'course credit',
+  mixed: 'mixed (cash and gift card or credit)',
+  unknown: 'form of payment not stated',
+};
+
+const STALENESS_COPY: Record<
+  StudyRecord['staleness'],
+  { label: string; tone: string; text: string } | null
+> = {
+  expired: {
+    label: 'This listing has expired',
+    tone: 'border-red-400 bg-red-50 text-red-900',
+    text: 'The recruitment end date on this posting has already passed, yet the university site still serves it as published. It may well be closed. Ask before you invest any time in it.',
+  },
+  stale: {
+    label: 'This listing looks stale',
+    tone: 'border-orange-400 bg-orange-50 text-orange-900',
+    text: 'There is no expiration date and the IRB approval is old enough that this posting may simply have been left up. Confirm it is still recruiting before you plan around it.',
+  },
+  aging: {
+    label: 'This listing is getting on',
+    tone: 'border-amber-300 bg-amber-50 text-amber-900',
+    text: 'It has been a while since this posting was approved or updated. Worth confirming enrolment is still open.',
+  },
+  fresh: null,
+};
+const stalenessNote = STALENESS_COPY[study.staleness];
+
+/** Criteria worth listing explicitly, in the order a participant would care. */
+const criteria: { label: string; value: string }[] = [
+  {
+    label: 'Age',
+    value: e.maxAge === null ? `${e.minAge} and over` : `${e.minAge} to ${e.maxAge}`,
+  },
+  ...(e.sexRestriction ? [{ label: 'Sex', value: `${e.sexRestriction} participants only` }] : []),
+  ...(e.requiresRightHanded ? [{ label: 'Handedness', value: 'Right-handed only' }] : []),
+  ...(e.requiresMriSafe
+    ? [{ label: 'MRI safety', value: 'Magnet safety screening required' }]
+    : []),
+  ...(e.requiresFasting ? [{ label: 'Fasting', value: 'Required before at least one visit' }] : []),
+  ...(e.requiresSpecificCondition
+    ? [{ label: 'Condition required', value: e.requiresSpecificCondition }]
+    : []),
+  ...(e.requiresParentOrChild
+    ? [{ label: 'Who takes part', value: 'A parent and child together' }]
+    : []),
+];
+
+const exclusions: string[] = [
+  ...(e.excludesCardiovascular ? ['Cardiovascular conditions'] : []),
+  ...(e.excludesPregnancy ? ['Pregnancy or lactation'] : []),
+  ...(e.excludesSeizure ? ['Seizure or epilepsy history'] : []),
+  ...(e.excludesNeurological ? ['Neurological conditions (stroke, brain injury, and similar)'] : []),
+];
+
+// Build-time baseline: what someone who has answered nothing should see.
+const baselineVerdict = checkEligibility(e, { ...EMPTY_PROFILE });
+
+const VERDICT_STYLE: Record<string, string> = {
+  eligible: 'border-brand-500 bg-brand-50 text-brand-700',
+  ineligible: 'border-gray-400 bg-gray-100 text-gray-800',
+  unknown: 'border-amber-300 bg-amber-50 text-amber-900',
+};
+const VERDICT_LABEL: Record<string, string> = {
+  eligible: 'Looks like a possible fit',
+  ineligible: 'Probably not a match',
+  unknown: 'Cannot tell from your details',
+};
+
+const pageTitle = `${study.title} — TAMU Paid Research Studies`;
+const description = scrubEmails(study.summary).slice(0, 180);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <!-- Unofficial mirror: the university page is the record of truth. -->
+    <link rel="canonical" href={study.url} />
+    <meta name="robots" content="index,follow,noarchive" />
+  </head>
+
+  <body class="bg-gray-50 font-sans text-gray-900">
+    <div class="mx-auto max-w-3xl px-4 py-8">
+      <nav class="mb-6 text-sm">
+        <a class="text-brand-700 underline hover:no-underline" href={link('/')}>
+          &larr; All studies
+        </a>
+        <span class="mx-2 text-gray-400">·</span>
+        <a class="text-brand-700 underline hover:no-underline" href={link('/about')}>About</a>
+      </nav>
+
+      <header>
+        <h1 class="text-2xl font-bold sm:text-3xl">{study.title}</h1>
+        {
+          study.tags.length > 0 && (
+            <ul class="mt-3 flex flex-wrap gap-1.5">
+              {study.tags.map((t) => (
+                <li class="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium">
+                  {t}
+                </li>
+              ))}
+            </ul>
+          )
+        }
+        {
+          study.summary && (
+            <p class="mt-4 text-gray-700">{scrubEmails(study.summary)}</p>
+          )
+        }
+      </header>
+
+      {
+        stalenessNote && (
+          <aside class={`mt-6 rounded-lg border p-4 ${stalenessNote.tone}`} role="note">
+            <p class="font-semibold">{stalenessNote.label}</p>
+            <p class="mt-1 text-sm">{stalenessNote.text}</p>
+            {study.expirationDate && (
+              <p class="mt-1 text-sm">
+                Recruitment end date on the posting: <strong>{day(study.expirationDate)}</strong>.
+              </p>
+            )}
+          </aside>
+        )
+      }
+
+      <!-- The canonical page, high on the page and hard to miss. Everything
+           below it is our reading of that page; that page is the real thing. -->
+      <div class="mt-6 rounded-lg border-2 border-brand-700 bg-white p-4">
+        <p class="text-sm text-gray-700">
+          This is an unofficial, parsed copy. The official listing is authoritative:
+        </p>
+        <a
+          class="mt-2 inline-block rounded-md bg-brand-700 px-4 py-2 font-semibold text-white hover:bg-brand-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+          href={study.url}
+          rel="noopener external"
+        >
+          Open on research.tamu.edu
+        </a>
+      </div>
+
+      <!-- ---------------------------------------------------------------- -->
+      <section class="mt-8" aria-labelledby="pay-heading">
+        <h2 id="pay-heading" class="text-lg font-bold">Pay and time</h2>
+
+        <div class="mt-3 grid gap-3 sm:grid-cols-3">
+          <div class={`rounded-lg border p-3 ${BUCKET_STYLE[bucket]}`}>
+            <p class="text-xs font-semibold tracking-wide uppercase">Guaranteed $/hour</p>
+            <p class="mt-1 text-2xl font-bold">
+              {study.effectiveHourly === null ? 'Unknown' : `${usd(study.effectiveHourly)}/hr`}
+            </p>
+            <p class="mt-1 text-xs">
+              {
+                study.effectiveHourly === null
+                  ? 'Pay or time commitment could not be read from the listing. Unknown is not the same as unpaid.'
+                  : 'Guaranteed money only, divided by stated participant time. Raffles are excluded.'
+              }
+            </p>
+          </div>
+
+          <div class="rounded-lg border border-gray-300 bg-white p-3">
+            <p class="text-xs font-semibold tracking-wide text-gray-600 uppercase">Compensation</p>
+            <p class="mt-1 text-lg font-semibold">{payHeadline()}</p>
+            <p class="mt-1 text-xs text-gray-600">{CURRENCY_LABEL[c.currencyKind]}</p>
+          </div>
+
+          <div class="rounded-lg border border-gray-300 bg-white p-3">
+            <p class="text-xs font-semibold tracking-wide text-gray-600 uppercase">Time</p>
+            <p class="mt-1 text-lg font-semibold">{durationHeadline()}</p>
+            {
+              d.spanWeeks !== null && (
+                <p class="mt-1 text-xs text-gray-600">spread over about {d.spanWeeks} weeks</p>
+              )
+            }
+          </div>
+        </div>
+
+        <dl class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {
+            c.perVisit !== null && (
+              <div>
+                <dt class="inline font-semibold">Per visit:</dt>
+                <dd class="inline"> {usd(c.perVisit)}</dd>
+              </div>
+            )
+          }
+          {
+            c.visitCount !== null && (
+              <div>
+                <dt class="inline font-semibold">Paid visits:</dt>
+                <dd class="inline"> {c.visitCount}</dd>
+              </div>
+            )
+          }
+          {
+            c.completionBonus !== null && (
+              <div>
+                <dt class="inline font-semibold">Completion bonus:</dt>
+                <dd class="inline"> {usd(c.completionBonus)}</dd>
+              </div>
+            )
+          }
+          {
+            c.raffleMax !== null && (
+              <div>
+                <dt class="inline font-semibold">Raffle prize:</dt>
+                <dd class="inline">
+                  {' '}
+                  up to {usd(c.raffleMax)} — a chance, not guaranteed pay
+                </dd>
+              </div>
+            )
+          }
+          {
+            c.hasNonCashPerk && (
+              <div>
+                <dt class="inline font-semibold">Also offered:</dt>
+                <dd class="inline"> non-cash perks such as parking, meals, or scan images</dd>
+              </div>
+            )
+          }
+          {
+            c.sonaCreditOption && (
+              <div>
+                <dt class="inline font-semibold">Course credit:</dt>
+                <dd class="inline"> available as an alternative to payment</dd>
+              </div>
+            )
+          }
+          {
+            d.sessionCount !== null && (
+              <div>
+                <dt class="inline font-semibold">Sessions:</dt>
+                <dd class="inline"> {d.sessionCount}</dd>
+              </div>
+            )
+          }
+        </dl>
+
+        {
+          (c.confidence !== 'high' || d.confidence !== 'high') && (
+            <p class="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              Low parser confidence on
+              {c.confidence !== 'high' && <> compensation ({c.confidence})</>}
+              {c.confidence !== 'high' && d.confidence !== 'high' && <> and</>}
+              {d.confidence !== 'high' && <> duration ({d.confidence})</>}. Read the source text
+              below before relying on these figures.
+            </p>
+          )
+        }
+      </section>
+
+      <!-- ---------------------------------------------------------------- -->
+      <!-- Auditability: the exact strings the parser was handed. -->
+      <section class="mt-6">
+        <details class="rounded-lg border border-gray-300 bg-white">
+          <summary
+            class="cursor-pointer px-4 py-3 font-semibold hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+          >
+            Source text — check our reading against the listing
+          </summary>
+          <div class="border-t border-gray-200 px-4 py-4 text-sm">
+            <p class="text-gray-700">
+              Below is the compensation and duration text exactly as the university publishes it,
+              markup and all. Everything above is derived from these two strings. If they disagree
+              with our numbers, believe these.
+            </p>
+
+            <h3 class="mt-4 font-semibold">Compensation, verbatim</h3>
+            <pre
+              class="mt-1 overflow-auto rounded-md border border-gray-200 bg-gray-50 p-3 text-xs whitespace-pre-wrap">{c.raw || '(the listing left this blank)'}</pre>
+            {
+              c.notes.length > 0 && (
+                <>
+                  <p class="mt-2 font-semibold">How it was read:</p>
+                  <ul class="mt-1 list-disc pl-5 text-gray-700">
+                    {c.notes.map((n) => (
+                      <li>{n}</li>
+                    ))}
+                  </ul>
+                </>
+              )
+            }
+
+            <h3 class="mt-4 font-semibold">Duration, verbatim</h3>
+            <pre
+              class="mt-1 overflow-auto rounded-md border border-gray-200 bg-gray-50 p-3 text-xs whitespace-pre-wrap">{d.raw || '(the listing left this blank)'}</pre>
+
+            <dl class="mt-4 grid gap-x-6 gap-y-1 text-xs text-gray-600 sm:grid-cols-2">
+              <div><dt class="inline font-semibold">Compensation confidence:</dt><dd class="inline"> {c.confidence}</dd></div>
+              <div><dt class="inline font-semibold">Duration confidence:</dt><dd class="inline"> {d.confidence}</dd></div>
+              <div><dt class="inline font-semibold">Currency kind:</dt><dd class="inline"> {c.currencyKind}</dd></div>
+              <div><dt class="inline font-semibold">Raffle only:</dt><dd class="inline"> {c.raffleOnly ? 'yes' : 'no'}</dd></div>
+            </dl>
+          </div>
+        </details>
+      </section>
+
+      <!-- ---------------------------------------------------------------- -->
+      <section class="mt-8" aria-labelledby="elig-heading">
+        <h2 id="elig-heading" class="text-lg font-bold">Who can take part</h2>
+
+        <dl class="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {
+            criteria.map((row) => (
+              <div>
+                <dt class="inline font-semibold">{row.label}:</dt>
+                <dd class="inline"> {row.value}</dd>
+              </div>
+            ))
+          }
+        </dl>
+
+        {
+          exclusions.length > 0 && (
+            <div class="mt-4">
+              <p class="text-sm font-semibold">The listing screens out:</p>
+              <ul class="mt-1 list-disc pl-5 text-sm">
+                {exclusions.map((x) => (
+                  <li>{x}</li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        {
+          e.flags.length > 0 && (
+            <div class="mt-4">
+              <p class="text-sm font-semibold">Other criteria mentioned in the listing:</p>
+              <ul class="mt-1 list-disc pl-5 text-sm text-gray-700">
+                {e.flags.map((f) => (
+                  <li>{scrubEmails(f)}</li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        <!-- Verdict. Server-rendered as the all-unanswered baseline, then
+             replaced client-side once the local profile is read. -->
+        <div
+          class="mt-5"
+          data-verdict-root
+          data-eligibility={JSON.stringify(e)}
+          data-verdict-styles={JSON.stringify(VERDICT_STYLE)}
+          data-verdict-labels={JSON.stringify(VERDICT_LABEL)}
+        >
+          <div class={`rounded-lg border p-4 ${VERDICT_STYLE[baselineVerdict.status]}`} data-verdict-box>
+            <p class="font-semibold" data-verdict-label>{VERDICT_LABEL[baselineVerdict.status]}</p>
+            <ul class="mt-2 list-disc pl-5 text-sm" data-verdict-reasons>
+              {baselineVerdict.reasons.map((r) => <li>{r}</li>)}
+            </ul>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <ProfilePanel />
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------------- -->
+      <section class="mt-8" aria-labelledby="contact-heading">
+        <h2 id="contact-heading" class="text-lg font-bold">Get in touch</h2>
+        <p class="mt-1 text-sm text-gray-700">
+          Many of these postings are out of date, so the first thing to ask is whether the study is
+          still recruiting. The draft below does that for you, and states anything from your
+          details that the listing screens for — it will not leave that out to improve your odds.
+        </p>
+        <ContactButton study={study} phone={study.contactPhone} class="mt-3" />
+      </section>
+
+      <!-- ---------------------------------------------------------------- -->
+      <section class="mt-8" aria-labelledby="admin-heading">
+        <h2 id="admin-heading" class="text-lg font-bold">Study record</h2>
+        <dl class="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          <div><dt class="inline font-semibold">IRB number:</dt><dd class="inline"> {study.irbNumber ?? 'not stated'}</dd></div>
+          <div><dt class="inline font-semibold">IRB approval:</dt><dd class="inline"> {day(study.irbApprovalDate)}</dd></div>
+          <div><dt class="inline font-semibold">Principal investigator:</dt><dd class="inline"> {scrubEmails(study.piName) || 'not stated'}</dd></div>
+          <div><dt class="inline font-semibold">Coordinator:</dt><dd class="inline"> {scrubEmails(study.contactName) || 'not stated'}</dd></div>
+          <div><dt class="inline font-semibold">Recruitment opened:</dt><dd class="inline"> {day(study.recruitmentStartDate)}</dd></div>
+          <div><dt class="inline font-semibold">Recruitment ends:</dt><dd class="inline"> {day(study.expirationDate)}</dd></div>
+          <div><dt class="inline font-semibold">Posted:</dt><dd class="inline"> {day(study.postedDate)}</dd></div>
+          <div><dt class="inline font-semibold">Last modified upstream:</dt><dd class="inline"> {day(study.modifiedDate)}</dd></div>
+          <div><dt class="inline font-semibold">Posting length:</dt><dd class="inline"> {study.lifecycleMonths === null ? 'not stated' : `${study.lifecycleMonths} months`}</dd></div>
+          <div><dt class="inline font-semibold">Location:</dt><dd class="inline"> {locations.join(', ') || 'not stated'}</dd></div>
+          <div><dt class="inline font-semibold">Format:</dt><dd class="inline"> {sessionTypes.join(', ') || 'not stated'}</dd></div>
+          <div><dt class="inline font-semibold">Field:</dt><dd class="inline"> {categories.join(', ') || 'not stated'}</dd></div>
+          <div><dt class="inline font-semibold">Topic:</dt><dd class="inline"> {topics.join(', ') || 'not stated'}</dd></div>
+        </dl>
+        <p class="mt-3 text-xs text-gray-600">
+          Data snapshot taken {day(snapshot.fetchedAt)}.
+        </p>
+      </section>
+
+      <footer class="mt-10 border-t border-gray-300 pt-4 text-xs text-gray-600">
+        <p>
+          Unofficial. Not affiliated with, endorsed by, or operated by Texas A&amp;M University.
+          Eligibility shown here is a reading of the listing's wording, not a medical or official
+          determination. <a class="underline" href={link('/about')}>More about this site</a>.
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      import { checkEligibility } from '@/lib/parse-eligibility.ts';
+      import { subscribe } from '@/lib/profile.ts';
+      import type { ParsedEligibility, UserProfile } from '@/types.ts';
+
+      const root = document.querySelector<HTMLElement>('[data-verdict-root]');
+      const box = root?.querySelector<HTMLElement>('[data-verdict-box]');
+      const label = root?.querySelector<HTMLElement>('[data-verdict-label]');
+      const list = root?.querySelector<HTMLElement>('[data-verdict-reasons]');
+
+      if (root && box && label && list) {
+        const parsed = JSON.parse(root.dataset['eligibility'] ?? '{}') as ParsedEligibility;
+        const styles = JSON.parse(root.dataset['verdictStyles'] ?? '{}') as Record<string, string>;
+        const labels = JSON.parse(root.dataset['verdictLabels'] ?? '{}') as Record<string, string>;
+        const allStyles = new Set(
+          Object.values(styles).flatMap((s) => s.split(/\s+/).filter(Boolean)),
+        );
+
+        subscribe((profile: UserProfile) => {
+          const verdict = checkEligibility(parsed, profile);
+
+          for (const cls of allStyles) box.classList.remove(cls);
+          for (const cls of (styles[verdict.status] ?? '').split(/\s+/).filter(Boolean)) {
+            box.classList.add(cls);
+          }
+
+          label.textContent = labels[verdict.status] ?? '';
+          list.replaceChildren();
+          for (const reason of verdict.reasons) {
+            const li = document.createElement('li');
+            li.textContent = reason;
+            list.appendChild(li);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

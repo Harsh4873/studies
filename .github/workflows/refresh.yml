@@ -1,0 +1,232 @@
+# Keep the published snapshot current.
+#
+# The site is static: every figure on it was fetched at build time. Without
+# this workflow the index silently ages, which is the one failure mode that
+# matters here - a listing that expired three months ago still reading as live.
+#
+# What a run does:
+#   1. fetch upstream and re-normalize                (npm run fetch:data)
+#   2. refuse to publish the result if it looks wrong (fixture fallback, or a
+#      sudden collapse in record count)
+#   3. prove the site still builds from it            (astro build)
+#   4. commit src/data/{snapshot,diff}.json           (only on a real change)
+#   5. tell the host to redeploy
+#
+# THREE THINGS THAT ARE EASY TO GET WRONG HERE, and how each is handled:
+#
+#   * `src/data/` is git-ignored. The commit below therefore needs `git add -f`.
+#     It is ignored because it is generated, but the snapshot is also the diff
+#     baseline - without a committed copy, every run would think all 79 studies
+#     were brand new. Committing it is what makes "what changed?" answerable.
+#
+#   * `snapshot.json` changes on EVERY run regardless of upstream, because
+#     `fetchedAt` is a timestamp. `git diff --quiet` would therefore always
+#     report a change and this job would commit twice a day forever. The
+#     material-change check below compares `studies` only.
+#
+#   * A network failure is NOT a workflow failure. `fetch:data` falls back to
+#     the committed fixture and exits 0 by design (a stale site beats a broken
+#     deploy). But fixture data must never be committed over real data, so the
+#     source is checked explicitly and the run stops short of committing.
+
+name: Refresh study data
+
+on:
+  schedule:
+    # Twice daily, ~06:17 and ~18:17 America/Chicago. Deliberately off the hour:
+    # scheduled jobs at :00 queue behind everyone else's and can drift by 15+
+    # minutes. Cron here is UTC and does not follow daylight saving.
+    - cron: '17 11 * * *'
+    - cron: '17 23 * * *'
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Redeploy even if the data did not change'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two runs committing to the same branch would race on push. Never cancel a
+  # run in flight - it may be between `git commit` and `git push`.
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Job level, not step level, on purpose: the `secrets` context cannot be
+    # read from a step's `if:`, and a step's own `env:` is not in scope for its
+    # own `if:` either. Hoisting it here is what makes "skip the deploy step
+    # when no hook is configured" expressible at all.
+    env:
+      DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Keep the previous snapshot before fetch:data overwrites it. It is both
+      # the diff baseline and what the sanity check below compares against.
+      - name: Save the committed snapshot
+        run: git show HEAD:src/data/snapshot.json > /tmp/prev-snapshot.json 2>/dev/null || true
+
+      # `|| true`: fetch:data exits non-zero only when there is nothing at all
+      # to publish (no network AND no usable fixture). Even then, failing here
+      # would just mean a red run for an upstream outage we cannot fix. The
+      # guard step decides what to do about it.
+      - name: Fetch upstream data
+        run: npm run fetch:data 2>&1 | tee /tmp/fetch.log || true
+
+      - name: Decide whether this result is publishable
+        id: gate
+        run: |
+          set -euo pipefail
+
+          if [ ! -f src/data/snapshot.json ]; then
+            echo "::error::fetch:data produced no snapshot - nothing to publish."
+            exit 1
+          fi
+
+          SOURCE=$(node -e 'let s="unknown";try{s=JSON.parse(require("fs").readFileSync("src/data/raw-studies.json","utf8")).source||"unknown"}catch{};process.stdout.write(String(s))')
+          echo "source=$SOURCE" >> "$GITHUB_OUTPUT"
+
+          if [ "$SOURCE" != "network" ]; then
+            # Fixture data is a rendering fallback, not a publishable snapshot.
+            # Committing it would overwrite real data and make the next run's
+            # diff report dozens of phantom changes.
+            echo "::warning::Upstream read failed (source=$SOURCE). Keeping the committed snapshot; not committing fixture data."
+            echo "verdict=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Compare `studies` only - `fetchedAt` moves every run and is not a
+          # change anyone can see. Note this DOES catch expiry rollover:
+          # `isExpired` and `staleness` are recomputed against the clock, so a
+          # posting lapsing overnight is a real change and triggers a deploy.
+          VERDICT=$(node -e '
+            const fs = require("fs");
+            const read = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
+            const prev = read("/tmp/prev-snapshot.json");
+            const next = read("src/data/snapshot.json");
+            if (!next || !Array.isArray(next.studies) || next.studies.length === 0) { process.stdout.write("empty"); process.exit(0); }
+            if (!prev || !Array.isArray(prev.studies)) { process.stdout.write("changed"); process.exit(0); }
+            // A partial upstream response that still parses would otherwise
+            // publish a gutted index. Halving is far outside normal churn.
+            if (next.studies.length < prev.studies.length * 0.5) { process.stdout.write("suspect"); process.exit(0); }
+            process.stdout.write(JSON.stringify(prev.studies) === JSON.stringify(next.studies) ? "unchanged" : "changed");
+          ')
+
+          case "$VERDICT" in
+            empty)
+              echo "::error::Snapshot contains zero studies. Refusing to publish."
+              exit 1 ;;
+            suspect)
+              PREV=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync("/tmp/prev-snapshot.json","utf8")).studies.length))')
+              NEXT=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync("src/data/snapshot.json","utf8")).studies.length))')
+              echo "::warning::Record count collapsed from $PREV to $NEXT. Refusing to publish; re-run manually if upstream really shrank."
+              echo "verdict=skip" >> "$GITHUB_OUTPUT" ;;
+            unchanged)
+              echo "Nothing material changed upstream."
+              echo "verdict=unchanged" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "verdict=changed" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # Prove the data is buildable BEFORE committing it. `astro build`, not
+      # `npm run build`, so the freshly fetched data is used as-is rather than
+      # re-fetched (`npm run build` = fetch:data && astro build).
+      - name: Verify the site still builds
+        if: steps.gate.outputs.verdict == 'changed'
+        run: npx astro build
+
+      - name: No contact addresses in the published output
+        # Same gate as ci.yml, and this is the copy that matters more. CI only
+        # ever sees data a human already looked at; this job publishes whatever
+        # the registry served at 11:17 UTC, unattended, straight to production.
+        # A coordinator pasting an address into a new free-text field would
+        # ship here first. `dist/.prerender/` is Astro's SSR staging bundle,
+        # deleted on a successful build and never deployed.
+        if: steps.gate.outputs.verdict == 'changed'
+        run: |
+          set -uo pipefail
+          hits=$(grep -rEoh --exclude-dir=.prerender \
+            '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' dist || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Refusing to deploy: email addresses are in plaintext in dist/. See src/components/ContactButton.astro."
+            printf '%s\n' "$hits" | sort -u | sed 's/^/  leaked: /'
+            exit 1
+          fi
+          echo "dist/ is clean: no plaintext email addresses."
+
+      - name: Commit the new snapshot
+        if: steps.gate.outputs.verdict == 'changed'
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # -f because src/data/ is git-ignored; see the header comment.
+          git add -f src/data/snapshot.json src/data/diff.json
+
+          COUNT=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync("src/data/snapshot.json","utf8")).studies.length))')
+          SUMMARY=$(node -e '
+            const d = JSON.parse(require("fs").readFileSync("src/data/diff.json", "utf8"));
+            const n = (a) => (Array.isArray(a) ? a.length : 0);
+            process.stdout.write(`${n(d.added)} added, ${n(d.removed)} removed, ${n(d.changed)} changed`);
+          ')
+
+          git commit -m "data: refresh snapshot (${COUNT} studies; ${SUMMARY})" \
+                     -m "Automated by .github/workflows/refresh.yml."
+
+          # Push once, then rebase and retry if a human landed a commit in the
+          # meantime. The concurrency group prevents this job racing itself.
+          git push || { git pull --rebase --autostash && git push; }
+
+      - name: Trigger a deploy
+        # Only needed when the host is not connected to the repo. A Git-linked
+        # Vercel/Cloudflare project already redeploys on the push above: the
+        # push webhook still fires for a GITHUB_TOKEN commit, even though such
+        # a push deliberately does not trigger `on: push` Actions workflows
+        # (which is also why this does not loop with ci.yml).
+        if: >-
+          env.DEPLOY_HOOK_URL != '' &&
+          (steps.gate.outputs.verdict == 'changed' || inputs.force_deploy)
+        run: |
+          set -euo pipefail
+          # A failing deploy hook is a real problem, unlike a failing upstream
+          # read - retry, then fail loudly rather than leaving the site stale.
+          curl --fail --silent --show-error --location \
+               --retry 3 --retry-delay 10 --retry-all-errors \
+               --request POST "$DEPLOY_HOOK_URL" > /dev/null
+          echo "Deploy hook accepted."
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Data refresh"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| upstream source | \`${{ steps.gate.outputs.source || 'n/a' }}\` |"
+            echo "| verdict | \`${{ steps.gate.outputs.verdict || 'failed' }}\` |"
+            echo
+            echo '<details><summary>fetch:data output</summary>'
+            echo
+            echo '```'
+            tail -n 60 /tmp/fetch.log 2>/dev/null || echo "(no log)"
+            echo '```'
+            echo
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"

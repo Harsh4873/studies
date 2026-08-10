@@ -1,0 +1,243 @@
+---
+/**
+ * About page.
+ *
+ * This page exists to make three things impossible to misunderstand:
+ *   1. This site is not Texas A&M and has nothing to do with Texas A&M.
+ *   2. The pay figures are a machine's reading of free text and can be wrong.
+ *   3. Nothing anyone types into the profile form leaves their browser.
+ *
+ * The snapshot timestamp and study counts are read from the build data rather
+ * than written by hand, so the freshness claim on this page cannot drift away
+ * from what the site is actually serving.
+ */
+import snapshotJson from '@/data/snapshot.json';
+import type { Snapshot } from '@/types.ts';
+import { STUDY_API_URL } from '@/types.ts';
+import '@/styles/global.css';
+
+const snapshot = snapshotJson as unknown as Snapshot;
+
+const BASE = import.meta.env.BASE_URL.replace(/\/+$/, '');
+const link = (path: string): string => `${BASE}/${path.replace(/^\/+/, '')}`.replace(/\/*$/, '/');
+
+const fetchedAt = new Date(snapshot.fetchedAt);
+const fetchedLabel = Number.isNaN(fetchedAt.getTime())
+  ? 'unknown'
+  : fetchedAt.toLocaleString('en-US', {
+      dateStyle: 'long',
+      timeStyle: 'short',
+      timeZone: 'UTC',
+    }) + ' UTC';
+
+const total = snapshot.studies.length;
+const expired = snapshot.studies.filter((s) => s.isExpired).length;
+const rated = snapshot.studies.filter((s) => s.effectiveHourly !== null).length;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>About — TAMU Paid Research Studies</title>
+    <meta
+      name="description"
+      content="An unofficial, independently built index of paid research study listings from the public Aggie Research Volunteers API. Not affiliated with Texas A&M University."
+    />
+  </head>
+
+  <body class="bg-gray-50 font-sans text-gray-900">
+    <div class="mx-auto max-w-2xl px-4 py-8">
+      <nav class="mb-6 text-sm">
+        <a class="text-brand-700 underline hover:no-underline" href={link('/')}>
+          &larr; All studies
+        </a>
+      </nav>
+
+      <h1 class="text-2xl font-bold sm:text-3xl">About this site</h1>
+
+      <!-- The disclaimer goes first, not in the footer. -->
+      <div class="mt-6 rounded-lg border-2 border-gray-400 bg-white p-4">
+        <p class="font-semibold">
+          Not affiliated with, endorsed by, sponsored by, or operated by Texas A&amp;M University.
+        </p>
+        <p class="mt-2 text-sm text-gray-700">
+          This is an independent, unofficial project built by one person. It reuses public data
+          that Texas A&amp;M publishes on its own website. The university has not reviewed it, has
+          no involvement in it, and is not responsible for anything on it. "Texas A&amp;M",
+          "Aggie", and related names belong to the university and are used here only to describe
+          whose listings these are.
+        </p>
+      </div>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">What this is</h2>
+        <p class="mt-2">
+          Texas A&amp;M runs a public board of research studies looking for volunteers, most of
+          which pay. The official board is a good list but a hard one to shop: pay is written as
+          free text ("Up to $30, paid as an Amazon gift card"), time commitment is written as
+          different free text ("One-session study lasting about 2 hours"), and the two are never
+          put together. So there is no way to see which studies are actually worth your afternoon.
+        </p>
+        <p class="mt-2">
+          This site reads both strings, works out guaranteed dollars per hour of your time, and
+          sorts by it. It also tells you when a listing looks like it has been left up past its
+          end date, which turns out to be common.
+        </p>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">Where the data comes from</h2>
+        <p class="mt-2">
+          Everything comes from the public Aggie Research Volunteers WordPress API at
+          <a class="break-all text-brand-700 underline" href={STUDY_API_URL} rel="noopener external">
+            {STUDY_API_URL}
+          </a>, plus the four matching taxonomy endpoints for category, location, session type, and
+          topic. No login, no scraping of pages, no private endpoints — it is the same JSON the
+          university's own site is built from.
+        </p>
+        <p class="mt-2">
+          That API sends no CORS header, so your browser could not read it directly even if this
+          site asked it to. All of it is fetched server-side when the site is built and baked into
+          static files. Your browser talks to this site and to nothing else.
+        </p>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">How often it refreshes</h2>
+        <p class="mt-2">
+          The listings are re-fetched every time the site is rebuilt. There is no live connection
+          and no background refresh — what you are reading is a snapshot.
+        </p>
+        <dl class="mt-3 rounded-lg border border-gray-300 bg-white p-4 text-sm">
+          <div><dt class="inline font-semibold">Snapshot taken:</dt><dd class="inline"> {fetchedLabel}</dd></div>
+          <div class="mt-1"><dt class="inline font-semibold">Studies listed:</dt><dd class="inline"> {total}</dd></div>
+          <div class="mt-1"><dt class="inline font-semibold">Already past their end date:</dt><dd class="inline"> {expired}</dd></div>
+          <div class="mt-1"><dt class="inline font-semibold">With a computable $/hour:</dt><dd class="inline"> {rated} of {total}</dd></div>
+        </dl>
+        <p class="mt-2 text-sm text-gray-700">
+          Studies also come and go upstream faster than a snapshot can track. A listing that was
+          live when the snapshot was taken may have closed since, which is why every study page
+          leads with "ask whether they are still recruiting".
+        </p>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">The pay figures are best-effort</h2>
+        <p class="mt-2">
+          This is the most important caveat on the site. The dollar and hour figures are produced
+          by a heuristic parser reading sentences written by dozens of different labs with no
+          shared format. It handles the common shapes well and it definitely gets some listings
+          wrong.
+        </p>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            <strong>The official listing is authoritative.</strong> Every study page links to it
+            prominently, and shows the exact compensation and duration text under "Source text" so
+            you can check our arithmetic in one click.
+          </li>
+          <li>
+            <strong>Guaranteed money only.</strong> A raffle entry is never counted as pay, no
+            matter how large the prize, because the expected value of a drawing is not a wage.
+            Raffles are shown separately.
+          </li>
+          <li>
+            <strong>"Unknown" is not "unpaid".</strong> When pay or time cannot be read honestly,
+            the rate is left blank and sorts last, rather than being recorded as $0.
+          </li>
+          <li>
+            <strong>Nothing here is negotiated or promised.</strong> What you are actually paid is
+            between you and the study team.
+          </li>
+        </ul>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">The eligibility filter is a hint</h2>
+        <p class="mt-2">
+          If you fill in the optional details form, this site compares your answers with the
+          criteria it read out of each listing and sorts studies into "looks like a fit",
+          "probably not", and "cannot tell". That is
+          <strong>a reading of some wording on a web page, not a medical or official
+          determination</strong>, and it is not medical advice. Only the study team can decide who
+          is eligible, and they will screen you themselves.
+        </p>
+        <p class="mt-2">
+          Anything you leave blank counts as "not answered", never as "no". That deliberately keeps
+          more studies visible rather than fewer: quietly filtering out a study someone would have
+          qualified for is a worse mistake than showing one they will not.
+        </p>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">Your details never leave your browser</h2>
+        <p class="mt-2">
+          The optional form asks about age, handedness, MRI safety, cardiovascular conditions,
+          pregnancy, seizure history, sex, fasting, and student status. Those answers are stored in
+          your browser's local storage and nowhere else.
+        </p>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+          <li>There is no account, no database, and no server to send them to — the site is static files.</li>
+          <li>There is no analytics, no tracking pixel, and no third-party script on any page.</li>
+          <li>
+            The one time any of it goes anywhere is a draft email you write yourself and send from
+            your own mail client, and you see the full text before you send it.
+          </li>
+          <li>"Clear my details" deletes the stored record outright, as does clearing site data.</li>
+        </ul>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">About the coordinators' email addresses</h2>
+        <p class="mt-2">
+          Each listing includes a contact address, usually a graduate student's personal university
+          email. Those people agreed to be listed on a university recruitment page; they did not
+          agree to be on a scrapeable mirror. So no address appears in this site's HTML — each one
+          is encoded and assembled in your browser only after you press "Show contact details".
+          That stops bulk harvesters, not people, which is the point.
+        </p>
+        <p class="mt-2">
+          The same applies to the downloadable dataset: <code>api/studies.json</code> publishes
+          every parsed figure but blanks out the contact name, email and phone, because one file
+          holding all of them is exactly the list this is meant to prevent. The build refuses to
+          finish if an address ever reaches either the pages or the dataset.
+        </p>
+        <p class="mt-2">
+          If you are a coordinator and would rather your study not appear here at all, that is a
+          fair ask and it will be honoured.
+        </p>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-bold">Known limitations</h2>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            Some listings genuinely enrol minors — the minimum age goes as low as 2. Nothing here
+            assumes an 18+ audience, so use the age field.
+          </li>
+          <li>
+            A stated maximum age of 100 or 125 is a data-entry placeholder for "no limit", and is
+            treated as no upper bound rather than as a real cutoff.
+          </li>
+          <li>
+            The same protocol is sometimes posted more than once under the same IRB number. Those
+            are collapsed to the most recently updated copy, so a study you saw upstream may appear
+            here only once.
+          </li>
+          <li>
+            The upstream <code>status</code> field says "publish" even for listings whose
+            recruitment end date has passed, so expiry is worked out from the dates instead.
+          </li>
+        </ul>
+      </section>
+
+      <footer class="mt-10 border-t border-gray-300 pt-4 text-xs text-gray-600">
+        <p>
+          Unofficial and independent. Not affiliated with or endorsed by Texas A&amp;M University.
+          Study data belongs to the university and the individual research teams.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

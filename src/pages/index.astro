@@ -1,0 +1,568 @@
+---
+/**
+ * The listing page.
+ *
+ * Structure of the output, and why:
+ *
+ *   1. "Ranked by hourly rate"  - every non-expired study whose guaranteed
+ *      $/hour could actually be computed, best first. Unpaid studies ($0/hr)
+ *      belong here: zero is a measurement.
+ *   2. "Rate could not be calculated" - a SEPARATE section, below, never
+ *      interleaved. A study with unknown pay is not a cheap study, and
+ *      sorting it as if it were 0 would be a claim the data cannot support.
+ *   3. "Expired postings" - inside a collapsed <details>, dimmed and badged.
+ *      Kept, not deleted: TAMU keeps serving these and a lapsed posting is
+ *      often still worth an email.
+ *
+ * All data is read from src/data/snapshot.json at BUILD time. Nothing on this
+ * page talks to research.tamu.edu at runtime - the upstream API sends no CORS
+ * header, so a browser fetch would fail anyway.
+ */
+import FilterBar from '@/components/FilterBar.astro';
+import ProfilePanel from '@/components/ProfilePanel.astro';
+import StudyCard from '@/components/StudyCard.astro';
+import snapshotJson from '@/data/snapshot.json';
+import taxonomiesJson from '@/data/taxonomies.json';
+import Base from '@/layouts/Base.astro';
+import { isKnownRate, sortStudies, sortUnrated } from '@/lib/effective-rate.ts';
+import type { Snapshot, StudyRecord, TaxonomyTerm } from '@/types.ts';
+
+// ---------------------------------------------------------------------------
+// Build-time data load.
+//
+// A bare `import` (not fs) on purpose: Astro bundles page modules before it
+// prerenders them, so `import.meta.url` points at a chunk in dist/, and any
+// path resolved against it misses src/data entirely. The import also makes the
+// dependency real, so a missing snapshot fails the build loudly instead of
+// publishing an empty index.
+// ---------------------------------------------------------------------------
+
+const snapshot = snapshotJson as unknown as Snapshot;
+
+type TaxonomyFile = Record<string, Record<string, TaxonomyTerm> | TaxonomyTerm[]>;
+const taxonomies = taxonomiesJson as unknown as TaxonomyFile;
+
+/** The file has been written as both a keyed map and a flat array. Accept both. */
+function termMap(key: string): Map<number, string> {
+  const raw = taxonomies[key];
+  const terms: TaxonomyTerm[] = Array.isArray(raw)
+    ? raw
+    : raw === undefined
+      ? []
+      : Object.values(raw);
+  return new Map(terms.filter((t) => t && typeof t.id === 'number').map((t) => [t.id, t.name]));
+}
+
+const locationNames = termMap('location');
+const sessionTypeNames = termMap('sessionType');
+
+function namesFor(ids: number[], lookup: Map<number, string>): string[] {
+  return ids.map((id) => lookup.get(id)).filter((n): n is string => typeof n === 'string');
+}
+
+// ---------------------------------------------------------------------------
+// Sectioning. The split is the whole point; see the header comment.
+// ---------------------------------------------------------------------------
+
+const all: StudyRecord[] = snapshot.studies;
+const live = all.filter((s) => !s.isExpired);
+const dead = all.filter((s) => s.isExpired);
+
+const ranked = sortStudies(live.filter((s) => isKnownRate(s.effectiveHourly)));
+// Audit F11: this block used to be ordered by posting date alone, which put
+// #11321 - $1,000 guaranteed, the largest payout in the corpus - fourth, below
+// two studies that state no pay at all. Inside a bucket where the rate is
+// unknown by definition, the only fact a reader can act on is the money.
+// `sortUnrated` orders by guaranteed total descending, sinks no-stated-pay
+// last, and keeps newest-first as the tie-break.
+const unrated = sortUnrated(live.filter((s) => !isKnownRate(s.effectiveHourly)));
+const expired = sortStudies(dead);
+
+const TAG_LABEL: Record<string, string> = {
+  online: 'Online',
+  'in-person': 'In person',
+  mri: 'MRI',
+  eeg: 'EEG',
+  'vr-ar': 'VR / AR',
+  'focus-group': 'Focus group',
+  survey: 'Survey',
+  interview: 'Interview',
+  clinical: 'Clinical',
+  hci: 'Computing / HCI',
+};
+
+const tagCounts = new Map<string, number>();
+for (const s of live) for (const t of s.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+const tagFacets = [...tagCounts.entries()]
+  .filter(([slug]) => slug !== 'online' && slug !== 'in-person') // covered by the Format select
+  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  .map(([slug, count]) => ({ slug, label: TAG_LABEL[slug] ?? slug, count }));
+
+/**
+ * Eligibility criteria, shipped as one JSON blob so the browser can run the
+ * SAME `checkEligibility` the rest of the project uses instead of a second,
+ * subtly different copy of the rules. Study data only - nothing about the
+ * user is ever baked into this file.
+ */
+const eligibilityById = Object.fromEntries(all.map((s) => [s.id, s.eligibility]));
+const eligibilityJson = JSON.stringify(eligibilityById).replace(/</g, '\\u003c');
+
+const topRate = ranked.find((s) => isKnownRate(s.effectiveHourly) && s.effectiveHourly > 0);
+const description = `${live.length} currently posted paid research studies at Texas A&M, ranked by guaranteed pay per hour.`;
+---
+
+<Base
+  title="TAMU paid studies, ranked by $/hour"
+  description={description}
+  fetchedAt={snapshot.fetchedAt}
+  studyCount={all.length}
+>
+  <header class="site-header" slot="header">
+    <div class="wrap">
+      <h1 class="site-title">Paid research studies at Texas A&amp;M</h1>
+      <p class="site-sub">
+        {live.length} live postings ranked by guaranteed pay per hour of your time
+        {
+          topRate !== undefined && (
+            <>
+              , topping out at ${Math.round(topRate.effectiveHourly as number)}/hr
+            </>
+          )
+        }. Raffles are never counted as pay.
+      </p>
+    </div>
+  </header>
+
+  <main class="wrap" id="main">
+    {/* Owned by the profile agent. Collapsed here; the study pages open it. */}
+    <ProfilePanel class="profile-panel-index" />
+
+    <FilterBar tagFacets={tagFacets} />
+
+    <p class="result-count" id="result-count" role="status" aria-live="polite">
+      Showing <strong>{ranked.length + unrated.length}</strong> of {live.length} live studies.
+    </p>
+    <p class="note" id="unknown-note" hidden></p>
+
+    <div id="results">
+      <section class="section" id="section-ranked" aria-labelledby="h-ranked">
+        <h2 class="section-head" id="h-ranked">Ranked by hourly rate</h2>
+        <p class="section-note">
+          Guaranteed pay divided by the time the listing says it takes. Studies that list no
+          compensation appear here as unpaid, at the bottom.
+        </p>
+        <ol class="card-list" id="list-ranked">
+          {
+            ranked.map((s) => (
+              <StudyCard
+                study={s}
+                locations={namesFor(s.locationIds, locationNames)}
+                sessionTypes={namesFor(s.sessionTypeIds, sessionTypeNames)}
+              />
+            ))
+          }
+        </ol>
+      </section>
+
+      {
+        unrated.length > 0 && (
+          <section class="section" id="section-unrated" aria-labelledby="h-unrated">
+            <h2 class="section-head" id="h-unrated">Rate could not be calculated</h2>
+            <p class="section-note">
+              These {unrated.length} studies are not ranked and never mixed into the list above.
+              Either the pay, the time commitment, or both were missing from the listing, or the
+              only compensation is a prize drawing. Unknown is not the same as badly paid &mdash;
+              several of these may be worth an email.
+            </p>
+            <ol class="card-list" id="list-unrated">
+              {unrated.map((s) => (
+                <StudyCard
+                  study={s}
+                  locations={namesFor(s.locationIds, locationNames)}
+                  sessionTypes={namesFor(s.sessionTypeIds, sessionTypeNames)}
+                />
+              ))}
+            </ol>
+          </section>
+        )
+      }
+
+      <div class="empty" id="empty-state" hidden>
+        <h2>No studies match those filters</h2>
+        <p>
+          Nothing here is hidden for any other reason &mdash; this is the whole set of
+          {live.length} live postings filtered down to zero. Try clearing the pay or time limits first;
+          they are the two that also exclude studies whose figures could not be parsed.
+        </p>
+        <button class="btn" type="button" data-reset>Reset filters</button>
+      </div>
+
+      {
+        expired.length > 0 && (
+          <details class="expired-block" id="expired-block">
+            <summary>Show {expired.length} expired postings</summary>
+            <p class="section-note">
+              The listing&rsquo;s own expiration date has passed, though TAMU still serves the page
+              and the status still reads &ldquo;publish&rdquo;. Some of these teams are still
+              recruiting and simply never updated the date, so they are kept rather than deleted.
+              Assume nothing; email and ask.
+            </p>
+            <ol class="card-list" id="list-expired">
+              {expired.map((s) => (
+                <StudyCard
+                  study={s}
+                  locations={namesFor(s.locationIds, locationNames)}
+                  sessionTypes={namesFor(s.sessionTypeIds, sessionTypeNames)}
+                />
+              ))}
+            </ol>
+          </details>
+        )
+      }
+    </div>
+  </main>
+
+  <script type="application/json" id="elig-data" is:inline set:html={eligibilityJson} />
+</Base>
+
+<script>
+  /**
+   * Filtering, sorting and eligibility. Plain DOM, no framework.
+   *
+   * Two deliberate choices:
+   *
+   *  - Eligibility verdicts are computed by importing the project's own
+   *    `checkEligibility`, not by reimplementing it here. A second copy of
+   *    those rules would drift, and drift in this particular function means
+   *    telling someone they cannot do a study they can do.
+   *
+   *  - The pay and time filters exclude studies whose figures are unknown,
+   *    because an unknown value cannot be shown to clear a threshold. That
+   *    silently hides real opportunities, so the page counts them and says so
+   *    out loud instead of letting them vanish.
+   */
+  import { checkEligibility } from '@/lib/parse-eligibility.ts';
+  import * as profileModule from '@/lib/profile.ts';
+  import type { ParsedEligibility, UserProfile } from '@/types.ts';
+
+  type ProfileApi = {
+    getProfile?: () => UserProfile;
+    subscribe?: (cb: (p: UserProfile) => void) => (() => void) | void;
+  };
+  // Namespace import + duck typing: the profile module is owned by another
+  // part of the project, and a renamed export should degrade to "no
+  // eligibility filtering", not a blank page.
+  const profileApi = profileModule as ProfileApi;
+
+  const $ = <T extends HTMLElement>(id: string): T | null => document.getElementById(id) as T | null;
+
+  const form = $<HTMLFormElement>('filters');
+  const qInput = $<HTMLInputElement>('f-q');
+  const rateSel = $<HTMLSelectElement>('f-rate');
+  const totalSel = $<HTMLSelectElement>('f-total');
+  const hoursSel = $<HTMLSelectElement>('f-hours');
+  const modeSel = $<HTMLSelectElement>('f-mode');
+  const sortSel = $<HTMLSelectElement>('f-sort');
+  const eligibleBox = $<HTMLInputElement>('f-eligible');
+  const eligibleHint = $<HTMLElement>('f-eligible-hint');
+  const tagBox = $<HTMLElement>('f-tags');
+  const summary = $<HTMLElement>('f-summary');
+  const countEl = $<HTMLElement>('result-count');
+  const unknownNote = $<HTMLElement>('unknown-note');
+  const emptyState = $<HTMLElement>('empty-state');
+  const sectionRanked = $<HTMLElement>('section-ranked');
+  const sectionUnrated = $<HTMLElement>('section-unrated');
+  const expiredBlock = $<HTMLDetailsElement>('expired-block');
+
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-study]'));
+  const liveCards = cards.filter((c) => c.dataset.expired !== '1');
+  const deadCards = cards.filter((c) => c.dataset.expired === '1');
+
+  let eligibility: Record<string, ParsedEligibility> = {};
+  try {
+    const blob = document.getElementById('elig-data')?.textContent ?? '{}';
+    eligibility = JSON.parse(blob) as Record<string, ParsedEligibility>;
+  } catch {
+    eligibility = {};
+  }
+
+  const selectedTags = new Set<string>();
+
+  /** '' for an absent numeric data attribute, so `Number('')` is never used. */
+  const num = (v: string | undefined): number | null => {
+    if (v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // -- sorting --------------------------------------------------------------
+
+  type Key = (c: HTMLElement) => number | null;
+  const KEYS: Record<string, { key: Key; dir: 1 | -1 }> = {
+    rate: { key: (c) => num(c.dataset.rate), dir: -1 },
+    total: { key: (c) => num(c.dataset.total), dir: -1 },
+    time: { key: (c) => num(c.dataset.hours), dir: 1 },
+    new: { key: (c) => num(c.dataset.posted), dir: -1 },
+  };
+
+  function sortList(list: HTMLElement | null, mode: string): void {
+    if (list === null) return;
+    const spec = KEYS[mode] ?? KEYS.rate!;
+    const items = Array.from(list.children) as HTMLElement[];
+    // Unknown values always sink, in both directions. An unmeasured study is
+    // not a cheap one, a quick one, or a new one.
+    items.sort((a, b) => {
+      const av = spec.key(a);
+      const bv = spec.key(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return (av - bv) * spec.dir;
+    });
+    for (const item of items) list.appendChild(item);
+  }
+
+  // -- eligibility ----------------------------------------------------------
+
+  let profileAnswered = false;
+
+  function applyProfile(profile: UserProfile | null): void {
+    profileAnswered =
+      profile !== null && Object.values(profile).some((v) => v !== null && v !== undefined);
+
+    for (const card of cards) {
+      const parsed = eligibility[card.dataset.id ?? ''];
+      const target = card.querySelector<HTMLElement>('[data-verdict]');
+      if (parsed === undefined || profile === null || !profileAnswered) {
+        card.dataset.eligibility = 'unknown';
+        if (target !== null) {
+          target.hidden = true;
+          target.textContent = '';
+        }
+        continue;
+      }
+
+      let status = 'unknown';
+      let reason = '';
+      try {
+        const verdict = checkEligibility(parsed, profile);
+        status = verdict.status;
+        reason = verdict.reasons[0] ?? '';
+      } catch {
+        status = 'unknown';
+      }
+      card.dataset.eligibility = status;
+
+      if (target !== null) {
+        // Only a hard conflict is worth interrupting the card for. 'unknown'
+        // is the normal state of a partly-filled profile and saying so on
+        // every card would train the eye to ignore the message.
+        if (status === 'ineligible') {
+          target.className = 'verdict verdict-ineligible';
+          target.textContent = `Probably not eligible: ${reason}`;
+          target.hidden = false;
+        } else {
+          target.hidden = true;
+          target.textContent = '';
+        }
+      }
+    }
+
+    if (eligibleBox !== null) {
+      eligibleBox.disabled = !profileAnswered;
+      if (!profileAnswered) eligibleBox.checked = false;
+    }
+    if (eligibleHint !== null) {
+      eligibleHint.textContent = profileAnswered
+        ? 'Based on the screening profile saved in this browser. Studies that cannot be checked stay visible.'
+        : 'Answer the screening questions first. Nothing is uploaded; the answers stay in this browser.';
+    }
+    apply();
+  }
+
+  // -- filtering ------------------------------------------------------------
+
+  let hiddenForUnknown = 0;
+
+  function matches(card: HTMLElement, words: string[], count: boolean): boolean {
+    const haystack = card.dataset.search ?? '';
+    for (const w of words) if (!haystack.includes(w)) return false;
+
+    const mode = modeSel?.value ?? 'any';
+    if (mode === 'online' && card.dataset.online !== '1') return false;
+    if (mode === 'inperson' && card.dataset.inperson !== '1') return false;
+
+    if (selectedTags.size > 0) {
+      const tags = (card.dataset.tags ?? '').split(' ');
+      if (!tags.some((t) => selectedTags.has(t))) return false;
+    }
+
+    if (eligibleBox?.checked === true && card.dataset.eligibility === 'ineligible') return false;
+
+    // Numeric thresholds last, so "hidden only because a figure is unknown"
+    // is a claim we can actually make about this card.
+    const minRate = Number(rateSel?.value ?? '0') || 0;
+    const minTotal = Number(totalSel?.value ?? '0') || 0;
+    const maxHours = num(hoursSel?.value);
+
+    const rate = num(card.dataset.rate);
+    const total = num(card.dataset.total);
+    const hrs = num(card.dataset.hours);
+
+    let unknownBlocked = false;
+    if (minRate > 0) {
+      if (rate === null) unknownBlocked = true;
+      else if (rate < minRate) return false;
+    }
+    if (minTotal > 0) {
+      if (total === null) unknownBlocked = true;
+      else if (total < minTotal) return false;
+    }
+    if (maxHours !== null) {
+      if (hrs === null) unknownBlocked = true;
+      else if (hrs > maxHours) return false;
+    }
+    if (unknownBlocked) {
+      // Only live studies are counted: the expired block is collapsed by
+      // default, so counting them would inflate a number nobody can act on.
+      if (count) hiddenForUnknown += 1;
+      return false;
+    }
+
+    return true;
+  }
+
+  function apply(): void {
+    const words = (qInput?.value ?? '')
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w) => w.trim())
+      .filter((w) => w !== '');
+
+    hiddenForUnknown = 0;
+
+    let visibleLive = 0;
+    for (const card of liveCards) {
+      const ok = matches(card, words, true);
+      card.hidden = !ok;
+      if (ok) visibleLive += 1;
+    }
+
+    let visibleDead = 0;
+    for (const card of deadCards) {
+      const ok = matches(card, words, false);
+      card.hidden = !ok;
+      if (ok) visibleDead += 1;
+    }
+
+    const rankedVisible = liveCards.filter((c) => !c.hidden && c.dataset.rate !== '').length;
+    const unratedVisible = visibleLive - rankedVisible;
+
+    if (sectionRanked !== null) sectionRanked.hidden = rankedVisible === 0;
+    if (sectionUnrated !== null) sectionUnrated.hidden = unratedVisible === 0;
+    if (emptyState !== null) emptyState.hidden = visibleLive > 0;
+
+    if (countEl !== null) {
+      countEl.innerHTML =
+        visibleLive === 0
+          ? `Showing <strong>no</strong> live studies.`
+          : `Showing <strong>${visibleLive}</strong> of ${liveCards.length} live studies` +
+            (unratedVisible > 0 ? ` (${rankedVisible} ranked, ${unratedVisible} unrated)` : '') +
+            '.';
+    }
+    if (summary !== null) summary.textContent = `${visibleLive} shown`;
+
+    if (unknownNote !== null) {
+      if (hiddenForUnknown > 0) {
+        unknownNote.hidden = false;
+        unknownNote.textContent =
+          `${hiddenForUnknown} ${hiddenForUnknown === 1 ? 'study is' : 'studies are'} hidden ` +
+          'only because the listing never stated a figure the pay or time filter could check. ' +
+          'They are not necessarily bad deals. Clear those filters to see them.';
+      } else {
+        unknownNote.hidden = true;
+      }
+    }
+
+    if (expiredBlock !== null) {
+      const label = expiredBlock.querySelector('summary');
+      if (label !== null) {
+        label.textContent =
+          visibleDead === deadCards.length
+            ? `Show ${deadCards.length} expired postings`
+            : `Show ${visibleDead} of ${deadCards.length} expired postings (filtered)`;
+      }
+      expiredBlock.hidden = deadCards.length === 0;
+    }
+  }
+
+  function resort(): void {
+    const mode = sortSel?.value ?? 'rate';
+    sortList($('list-ranked'), mode);
+    sortList($('list-unrated'), mode);
+    sortList($('list-expired'), mode);
+  }
+
+  function reset(): void {
+    if (qInput !== null) qInput.value = '';
+    if (rateSel !== null) rateSel.value = '0';
+    if (totalSel !== null) totalSel.value = '0';
+    if (hoursSel !== null) hoursSel.value = '';
+    if (modeSel !== null) modeSel.value = 'any';
+    if (sortSel !== null) sortSel.value = 'rate';
+    if (eligibleBox !== null) eligibleBox.checked = false;
+    selectedTags.clear();
+    for (const btn of tagBox?.querySelectorAll<HTMLButtonElement>('[data-tag]') ?? []) {
+      btn.setAttribute('aria-pressed', 'false');
+    }
+    resort();
+    apply();
+  }
+
+  // -- wiring ---------------------------------------------------------------
+
+  form?.addEventListener('submit', (e) => e.preventDefault());
+  qInput?.addEventListener('input', apply);
+  for (const el of [rateSel, totalSel, hoursSel, modeSel, eligibleBox]) {
+    el?.addEventListener('change', apply);
+  }
+  sortSel?.addEventListener('change', () => {
+    resort();
+    apply();
+  });
+  tagBox?.addEventListener('click', (event) => {
+    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-tag]');
+    if (btn === null) return;
+    const tag = btn.dataset.tag ?? '';
+    const on = btn.getAttribute('aria-pressed') === 'true';
+    btn.setAttribute('aria-pressed', on ? 'false' : 'true');
+    if (on) selectedTags.delete(tag);
+    else selectedTags.add(tag);
+    apply();
+  });
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-reset], #f-reset')) {
+    btn.addEventListener('click', reset);
+  }
+
+  // Profile: read once, then follow it. Every call is guarded because this
+  // module is owned elsewhere.
+  function readProfile(): UserProfile | null {
+    try {
+      return typeof profileApi.getProfile === 'function' ? profileApi.getProfile() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  applyProfile(readProfile());
+  try {
+    if (typeof profileApi.subscribe === 'function') {
+      profileApi.subscribe((p) => applyProfile(p ?? readProfile()));
+    }
+  } catch {
+    /* no live profile updates; the initial read still applies */
+  }
+
+  resort();
+  apply();
+</script>

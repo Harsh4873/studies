@@ -1,0 +1,311 @@
+---
+/**
+ * ContactButton - reveals a study coordinator's contact details on demand and
+ * hands the user a pre-written inquiry email.
+ *
+ * ============================================================================
+ * WHY THE ADDRESS IS NOT IN THE HTML
+ * ============================================================================
+ * The upstream listings publish the personal @tamu.edu addresses of graduate
+ * students and research coordinators. They agreed to appear on a university
+ * recruitment page. They did not agree to appear on a static mirror that is
+ * trivially scrapeable at scale, and a mirror that re-publishes them in
+ * plaintext hands every address-harvesting crawler a clean, structured list.
+ *
+ * So: no `mailto:` in the server-rendered markup, no address in any text node,
+ * no address in any attribute. The address ships as a hex token
+ * (`encodeEmailToken`) and is reassembled by `decodeEmailToken` only after the
+ * user clicks. Phone numbers get the same treatment for the same reason.
+ *
+ * This is obfuscation, not security - see the note in `src/lib/mailto.ts`. It
+ * defeats bulk regex harvesting, which is the entire threat model. A
+ * determined human can still read the address, exactly as they could on
+ * research.tamu.edu.
+ *
+ * The "copy email" fallback exists because `mailto:` links are genuinely
+ * broken for a lot of people - webmail users with no OS handler registered,
+ * locked-down work machines, mobile browsers with no mail app. Without it the
+ * primary action silently does nothing for them.
+ */
+import { encodeEmailToken, looksLikeEmail, type InquiryStudy } from '@/lib/mailto.ts';
+
+interface Props {
+  study: InquiryStudy;
+  /** Optional phone from the listing; hidden behind the same reveal. */
+  phone?: string | null;
+  class?: string;
+}
+
+const { study, phone = null, class: className = '' } = Astro.props;
+
+const email = study.contactEmail?.trim() ?? '';
+const hasEmail = email.length > 0;
+
+/**
+ * Upstream sometimes puts an address in the *name* field (study 8458 has
+ * `contact_name: "mpkj.engelen@ctral.org"`). Passing it through would print in
+ * plaintext the very thing this component exists to hide, so it is dropped
+ * here; `buildInquiryEmail` falls back to "Dear study team,".
+ */
+const safeContactName = looksLikeEmail(study.contactName) ? null : study.contactName;
+
+/**
+ * Everything the client needs to compose the message. Note what is absent:
+ * `contactEmail` is stripped out and travels only as the token.
+ */
+const payload: Omit<InquiryStudy, 'contactEmail'> & { contactEmail: null } = {
+  title: study.title,
+  irbNumber: study.irbNumber,
+  url: study.url,
+  contactName: safeContactName,
+  contactEmail: null,
+  expirationDate: study.expirationDate,
+  isExpired: study.isExpired,
+  staleness: study.staleness,
+  eligibility: study.eligibility,
+};
+
+const emailToken = hasEmail ? encodeEmailToken(email) : '';
+const phoneToken = phone && phone.trim() ? encodeEmailToken(phone.trim()) : '';
+---
+
+<div
+  class={`contact-button rounded-lg border border-gray-300 bg-white p-4 ${className}`}
+  data-email-token={emailToken}
+  data-phone-token={phoneToken}
+  data-study={JSON.stringify(payload)}
+>
+  <h3 class="text-base font-semibold">Contact the study team</h3>
+
+  {
+    hasEmail ? (
+      <>
+        <p class="mt-1 text-sm text-gray-600">
+          The coordinator's address is hidden until you ask for it, so crawlers cannot scrape it off
+          this page.
+        </p>
+
+        <button
+          type="button"
+          data-contact-reveal
+          class="mt-3 rounded-md bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+        >
+          Show contact details
+        </button>
+
+        <noscript>
+          <p class="mt-3 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm">
+            Revealing the address needs JavaScript. The contact details are listed in full on the
+            official page for this study, linked above.
+          </p>
+        </noscript>
+
+        <div data-contact-revealed hidden class="mt-3">
+          <dl class="text-sm">
+            <div class="flex flex-wrap items-baseline gap-x-2">
+              <dt class="font-semibold">Email</dt>
+              <dd>
+                <span data-contact-email class="font-mono break-all" />
+              </dd>
+            </div>
+            <div data-contact-phone-row hidden class="mt-1 flex flex-wrap items-baseline gap-x-2">
+              <dt class="font-semibold">Phone</dt>
+              <dd><span data-contact-phone class="font-mono" /></dd>
+            </div>
+          </dl>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            <a
+              data-contact-mailto
+              href="#"
+              class="rounded-md bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+            >
+              Open a draft email
+            </a>
+            <button
+              type="button"
+              data-contact-copy
+              class="rounded-md border border-gray-400 px-3 py-2 text-sm font-medium hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+            >
+              Copy email address
+            </button>
+            <button
+              type="button"
+              data-contact-copy-body
+              class="rounded-md border border-gray-400 px-3 py-2 text-sm font-medium hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+            >
+              Copy the message text
+            </button>
+            <span class="self-center text-sm text-gray-600" data-contact-copy-status role="status" aria-live="polite" />
+          </div>
+
+          <p data-contact-too-long hidden class="mt-2 text-sm text-amber-900">
+            This draft is long enough that some mail programs cut it short. Use
+            <strong>Copy the message text</strong> and paste it in, or check the preview below
+            after your mail client opens it.
+          </p>
+
+          <div
+            data-contact-disclosures
+            hidden
+            class="mt-3 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm"
+          >
+            <p class="font-semibold">This draft tells the team, in your words:</p>
+            <ul class="mt-1 list-disc pl-5" data-contact-disclosure-list />
+            <p class="mt-2">
+              That is deliberate. Exclusion criteria usually exist for participant safety, and this
+              site will not write a message that leaves out something you told it. Edit or delete
+              any of it before you send — it is your email.
+            </p>
+          </div>
+
+          <details class="mt-3">
+            <summary class="cursor-pointer text-sm font-medium">Preview the whole message</summary>
+            <p class="mt-2 text-sm text-gray-600">
+              Subject: <span data-contact-subject class="font-medium" />
+            </p>
+            <pre
+              data-contact-body
+              class="mt-2 max-h-96 overflow-auto rounded-md border border-gray-200 bg-gray-50 p-3 text-xs whitespace-pre-wrap"
+            />
+          </details>
+        </div>
+      </>
+    ) : (
+      <p class="mt-1 text-sm text-gray-600">
+        This listing did not include a contact address. Use the official study page linked above.
+      </p>
+    )
+  }
+</div>
+
+<script>
+  import { buildInquiryEmail, decodeEmailToken, type InquiryStudy } from '@/lib/mailto.ts';
+  import { getProfile, subscribe } from '@/lib/profile.ts';
+  import type { UserProfile } from '@/types.ts';
+
+  async function copyText(text: string): Promise<boolean> {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // Clipboard API refuses outside a secure context and in some embedded
+      // webviews; fall through to the legacy path rather than failing.
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      // `execCommand` is deprecated but is still the only clipboard path that
+      // works in insecure contexts and older webviews. Reached via an untyped
+      // lookup so the deprecation does not show up as a build diagnostic.
+      const legacyExec = (document as unknown as { execCommand?: (cmd: string) => boolean })
+        .execCommand;
+      const ok = typeof legacyExec === 'function' ? legacyExec.call(document, 'copy') : false;
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>('.contact-button')) {
+    const token = root.dataset['emailToken'] ?? '';
+    const raw = root.dataset['study'] ?? '';
+    if (!token || !raw) continue;
+
+    let study: InquiryStudy;
+    try {
+      study = JSON.parse(raw) as InquiryStudy;
+    } catch {
+      continue;
+    }
+
+    const revealBtn = root.querySelector<HTMLButtonElement>('[data-contact-reveal]');
+    const panel = root.querySelector<HTMLElement>('[data-contact-revealed]');
+    const emailEl = root.querySelector<HTMLElement>('[data-contact-email]');
+    const phoneEl = root.querySelector<HTMLElement>('[data-contact-phone]');
+    const phoneRow = root.querySelector<HTMLElement>('[data-contact-phone-row]');
+    const link = root.querySelector<HTMLAnchorElement>('[data-contact-mailto]');
+    const copyBtn = root.querySelector<HTMLButtonElement>('[data-contact-copy]');
+    const copyBodyBtn = root.querySelector<HTMLButtonElement>('[data-contact-copy-body]');
+    const copyStatus = root.querySelector<HTMLElement>('[data-contact-copy-status]');
+    const subjectEl = root.querySelector<HTMLElement>('[data-contact-subject]');
+    const bodyEl = root.querySelector<HTMLElement>('[data-contact-body]');
+    const discBox = root.querySelector<HTMLElement>('[data-contact-disclosures]');
+    const discList = root.querySelector<HTMLElement>('[data-contact-disclosure-list]');
+    const tooLong = root.querySelector<HTMLElement>('[data-contact-too-long]');
+
+    // The address exists only in this closure, and only after a click.
+    let address = '';
+    let currentBody = '';
+    let revealed = false;
+
+    const compose = (profile: UserProfile): void => {
+      if (!revealed) return;
+      const mail = buildInquiryEmail({ ...study, contactEmail: address }, profile);
+      currentBody = mail.body;
+      if (link) link.href = mail.href;
+      // A mailto that gets truncated en route sends a half-written message
+      // that still looks complete to the sender, so say so rather than hope.
+      if (tooLong) tooLong.hidden = !mail.isLong;
+      if (subjectEl) subjectEl.textContent = mail.subject;
+      if (bodyEl) bodyEl.textContent = mail.body;
+
+      if (discBox && discList) {
+        discList.replaceChildren();
+        for (const d of mail.disclosures) {
+          const li = document.createElement('li');
+          li.textContent = d;
+          discList.appendChild(li);
+        }
+        discBox.hidden = mail.disclosures.length === 0;
+      }
+    };
+
+    const reveal = (): void => {
+      if (revealed) return;
+      address = decodeEmailToken(token);
+      if (!address) return;
+      revealed = true;
+
+      if (emailEl) emailEl.textContent = address;
+      const phoneToken = root.dataset['phoneToken'] ?? '';
+      if (phoneToken && phoneEl && phoneRow) {
+        phoneEl.textContent = decodeEmailToken(phoneToken);
+        phoneRow.hidden = false;
+      }
+      if (panel) panel.hidden = false;
+      revealBtn?.setAttribute('hidden', '');
+
+      compose(getProfile());
+      // Keep the draft in step with edits made in the profile panel further
+      // up the same page.
+      subscribe(compose);
+    };
+
+    revealBtn?.addEventListener('click', reveal);
+
+    copyBtn?.addEventListener('click', async () => {
+      const ok = await copyText(address);
+      if (copyStatus) {
+        copyStatus.textContent = ok ? 'Address copied.' : `Copy failed — the address is ${address}`;
+      }
+    });
+
+    copyBodyBtn?.addEventListener('click', async () => {
+      const ok = await copyText(currentBody);
+      if (copyStatus) {
+        copyStatus.textContent = ok
+          ? 'Message copied. Paste it into your mail client.'
+          : 'Copy failed — select the preview text below instead.';
+      }
+    });
+  }
+</script>

@@ -1,0 +1,127 @@
+---
+/**
+ * Filter controls.
+ *
+ * Progressive enhancement: this is a plain `<form>` of native controls with no
+ * framework. Without JavaScript nothing is hidden - every study is already in
+ * the document - so the worst case is that the controls do nothing, which the
+ * `<noscript>` note says out loud.
+ *
+ * Keyboard: everything here is a native input, select, button or checkbox, so
+ * tab order and activation come for free. The tag chips are real `<button>`s
+ * with `aria-pressed`, not styled divs.
+ */
+interface Props {
+  /** Tag slug -> number of non-expired studies carrying it, most common first. */
+  tagFacets: { slug: string; label: string; count: number }[];
+}
+
+const { tagFacets } = Astro.props;
+
+const RATE_STEPS = [10, 15, 20, 25, 40];
+const TOTAL_STEPS = [25, 50, 100, 200, 500];
+const HOUR_STEPS = [
+  { value: '0.5', label: '30 minutes' },
+  { value: '1', label: '1 hour' },
+  { value: '2', label: '2 hours' },
+  { value: '5', label: '5 hours' },
+  { value: '10', label: '10 hours' },
+];
+---
+
+<form class="filters" id="filters" role="search" aria-label="Filter studies">
+  <noscript>
+    <p class="note">
+      These filters need JavaScript. Every study is still listed below, ranked by hourly rate.
+    </p>
+  </noscript>
+
+  <label class="field">
+    <span class="field-label">Search</span>
+    <input
+      class="control"
+      type="search"
+      id="f-q"
+      name="q"
+      placeholder="sleep, MRI, survey, a lab name…"
+      autocomplete="off"
+      enterkeyhint="search"
+    />
+  </label>
+
+  <div class="field-row field-row-3">
+    <label class="field">
+      <span class="field-label">Min $/hour</span>
+      <select class="control" id="f-rate" name="rate">
+        <option value="0">Any rate</option>
+        {RATE_STEPS.map((n) => <option value={n}>${n}/hr or more</option>)}
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Min total pay</span>
+      <select class="control" id="f-total" name="total">
+        <option value="0">Any total</option>
+        {TOTAL_STEPS.map((n) => <option value={n}>${n} or more</option>)}
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Max time</span>
+      <select class="control" id="f-hours" name="hours">
+        <option value="">Any length</option>
+        {HOUR_STEPS.map((h) => <option value={h.value}>{h.label} or less</option>)}
+      </select>
+    </label>
+  </div>
+
+  <div class="field-row">
+    <label class="field">
+      <span class="field-label">Format</span>
+      <select class="control" id="f-mode" name="mode">
+        <option value="any">Online or in person</option>
+        <option value="online">Online only</option>
+        <option value="inperson">In person only</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Sort by</span>
+      <select class="control" id="f-sort" name="sort">
+        <option value="rate">Best hourly rate</option>
+        <option value="total">Most total pay</option>
+        <option value="time">Shortest time</option>
+        <option value="new">Most recently posted</option>
+      </select>
+    </label>
+  </div>
+
+  <fieldset class="field">
+    <legend class="field-label">Study type &mdash; matches any selected</legend>
+    <div class="chip-set" id="f-tags">
+      {
+        tagFacets.map((t) => (
+          <button class="chip-toggle" type="button" data-tag={t.slug} aria-pressed="false">
+            {t.label} <span aria-hidden="true">({t.count})</span>
+            <span class="sr-only">, {t.count} studies</span>
+          </button>
+        ))
+      }
+    </div>
+  </fieldset>
+
+  <div class="switch-row">
+    <input type="checkbox" id="f-eligible" name="eligible" disabled />
+    <label class="switch-text" for="f-eligible">
+      Hide studies I am not eligible for
+      <span class="switch-hint" id="f-eligible-hint">
+        Uses the screening profile saved in this browser. Nothing is uploaded.
+      </span>
+    </label>
+  </div>
+
+  <div class="filter-actions">
+    <button class="btn" type="button" id="f-reset">Reset filters</button>
+    <span class="result-count" id="f-summary" aria-hidden="true"></span>
+  </div>
+</form>

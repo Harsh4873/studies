@@ -1,0 +1,111 @@
+---
+/**
+ * The headline money figure on a card.
+ *
+ * THE RULE THIS COMPONENT EXISTS TO ENFORCE: the badge only ever shows a
+ * number the data can defend, and the visual weight of that number matches
+ * how strong the claim is.
+ *
+ *   $25/hr        guaranteed pay divided by committed time  (green ramp)
+ *   $120 total    guaranteed pay, but the time is unknown so no rate exists
+ *                 (neutral, explicitly labelled "total", never green)
+ *   Unpaid        the listing says compensation is "None" - a known zero,
+ *                 which is a different claim from "we could not tell"
+ *   Drawing only  the only compensation is a raffle entry (dashed violet)
+ *   Pay unclear   the compensation text could not be parsed at all
+ *
+ * A raffle prize NEVER appears here as a dollar amount. "$100 drawing" in a
+ * green badge would read as $100 in hand, which is the exact lie this site is
+ * built to avoid. Raffle values are rendered separately by StudyCard in the
+ * dashed `.chance` treatment, always next to the words "not guaranteed".
+ */
+import { rateBucket } from '@/lib/effective-rate.ts';
+import type { ParsedCompensation } from '@/types.ts';
+
+interface Props {
+  /** StudyRecord.effectiveHourly - guaranteed USD per hour, or null. */
+  rate: number | null;
+  compensation: ParsedCompensation;
+}
+
+const { rate, compensation: comp } = Astro.props;
+
+/** Whole dollars unless the cents actually carry information. */
+function usd(n: number): string {
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded)
+    ? `$${rounded.toLocaleString('en-US')}`
+    : `$${rounded.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+const hasGuaranteedPay =
+  typeof comp.guaranteedMax === 'number' && Number.isFinite(comp.guaranteedMax) && comp.guaranteedMax > 0;
+
+type Variant = {
+  className: string;
+  value: string;
+  unit: string | null;
+  /** Screen-reader sentence; the visual text is too compressed to read well. */
+  label: string;
+};
+
+function pick(): Variant {
+  // 1. A real, rankable rate.
+  if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+    return {
+      className: `rate-${rateBucket(rate)}`,
+      value: usd(rate),
+      unit: 'per hour',
+      label: `Effective pay ${usd(rate)} per hour of participant time.`,
+    };
+  }
+
+  // 2. A known zero. "None" in the compensation field is information.
+  if (rate === 0 || (comp.guaranteedMax === 0 && !comp.raffleOnly && comp.raffleMax === null)) {
+    return {
+      className: 'rate-zero',
+      value: 'Unpaid',
+      unit: null,
+      label: 'This study lists no compensation.',
+    };
+  }
+
+  // 3. Raffle-only: there is no guaranteed money to put in this slot at all.
+  if (comp.raffleOnly) {
+    return {
+      className: 'rate-chance',
+      value: 'Drawing',
+      unit: 'entry only',
+      label: 'Compensation is an entry into a prize drawing. There is no guaranteed payment.',
+    };
+  }
+
+  // 4. Pay is known but the time commitment is not, so no rate can be honest.
+  if (hasGuaranteedPay) {
+    const total = usd(comp.guaranteedMax as number);
+    const capped = comp.guaranteedMin === null;
+    return {
+      className: 'rate-unknown',
+      value: capped ? `up to ${total}` : total,
+      unit: 'total, rate unknown',
+      label: `${capped ? 'Up to ' : ''}${total} total. The time commitment is unknown, so an hourly rate cannot be calculated.`,
+    };
+  }
+
+  // 5. Nothing usable.
+  return {
+    className: 'rate-unknown',
+    value: 'Pay',
+    unit: 'unclear',
+    label: 'The compensation for this study could not be determined from the listing.',
+  };
+}
+
+const v = pick();
+---
+
+<p class:list={['rate', v.className]}>
+  <span class="rate-value" aria-hidden="true">{v.value}</span>
+  {v.unit !== null && <span class="rate-unit" aria-hidden="true">{v.unit}</span>}
+  <span class="sr-only">{v.label}</span>
+</p>
