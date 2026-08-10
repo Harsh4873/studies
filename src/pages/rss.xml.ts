@@ -1,5 +1,5 @@
 /**
- * RSS 2.0 feed of newly listed studies.  ->  /r/studies/rss.xml
+ * RSS 2.0 feed of newly listed studies.  ->  /studies/rss.xml
  *
  * The point: replace "remember to check the site" with a subscription. A feed
  * reader tells you when a study appears; you never poll.
@@ -280,7 +280,7 @@ interface FeedItem {
 
 export const GET: APIRoute = (context) => {
   const origin = (context.site ?? new URL(FALLBACK_ORIGIN)).origin;
-  // BASE_URL is '/r/studies/' in this project; normalize either spelling.
+  // BASE_URL is '/studies/' in this project; normalize either spelling.
   const base = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/`;
   const abs = (path: string): string => `${origin}${base}${path.replace(/^\/+/, '')}`;
 

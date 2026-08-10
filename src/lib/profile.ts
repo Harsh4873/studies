@@ -51,11 +51,11 @@ import type { Sex, UserProfile } from '@/types.ts';
 
 /**
  * Storage key. Namespaced so it cannot collide with anything else served from
- * the same origin (the site lives at harsh.bet/r/studies/, and localStorage is
- * scoped per-origin, NOT per-path - a sibling app at harsh.bet/r/other/ shares
+ * the same origin (the site lives at harsh.bet/studies/, and localStorage is
+ * scoped per-origin, NOT per-path - a sibling app at harsh.bet/other/ shares
  * this bucket).
  */
-export const PROFILE_STORAGE_KEY = 'harsh.bet/r/studies:profile';
+export const PROFILE_STORAGE_KEY = 'harsh.bet/studies:profile';
 
 /**
  * Schema version of the stored envelope.

@@ -27,6 +27,9 @@ npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# claude code local settings
+.claude/settings.local.json
+
 # os / editor
 .DS_Store
 Thumbs.db

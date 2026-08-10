@@ -1,0 +1,136 @@
+# The deploy. A push to main runs this and the result is https://harsh.bet/studies/.
+#
+# This is a GitHub Pages *project* site. The user site (harsh4873.github.io)
+# carries the harsh.bet custom domain, so every project repo on the account is
+# served at the path named after it - the repo name IS the route. No CNAME
+# file belongs in this repo; the domain mapping lives entirely on the user
+# site, and a stray CNAME here would try to claim the domain for this repo.
+#
+# Step order matches ci.yml, for the same load-bearing reason: `fetch:data`
+# must run before `typecheck` because three modules hard-import
+# `@/data/snapshot.json`, which a fresh checkout does not have. See ci.yml's
+# header for the details.
+#
+# Data freshness: `fetch:data` pulls live and falls back to the committed
+# fixture when upstream is unreachable (a stale deploy beats a broken one).
+# Between code pushes, refresh.yml keeps the published site current by
+# committing new snapshots and dispatching this workflow.
+
+name: Deploy Studies to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        # `enablement: true` creates the Pages site (build type: workflow) on
+        # the first run, so a fresh repo needs no manual Settings -> Pages
+        # step. A no-op on every run after that.
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch build data
+        # Non-blocking: falls back to the committed fixture when upstream is
+        # unreachable. The next step still fails the run if that left nothing
+        # to build.
+        run: npm run fetch:data || true
+
+      - name: Require build data
+        run: |
+          if [ ! -f src/data/snapshot.json ]; then
+            echo "::error::No src/data/snapshot.json. Upstream was unreachable AND the fixture fallback failed - check fixtures/arv-snapshot.json."
+            exit 1
+          fi
+          node -e '
+            const snap = JSON.parse(require("fs").readFileSync("src/data/snapshot.json", "utf8"));
+            const n = Array.isArray(snap.studies) ? snap.studies.length : 0;
+            if (n === 0) { console.error("::error::snapshot.json has zero studies; nothing to build against."); process.exit(1); }
+            console.log(`snapshot.json: ${n} studies`);
+          '
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test:run
+
+      - name: Build
+        # `astro build`, not `npm run build`: the data is already fetched, and
+        # re-fetching would typecheck one dataset and build a different one.
+        run: npx astro build
+
+      - name: Validate Pages artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in dist/index.html dist/about/index.html dist/rss.xml dist/api/studies.json; do
+            [ -s "$f" ] || { echo "::error::missing or empty build output: $f"; exit 1; }
+          done
+          # Every asset and link must carry the /studies/ base. Serving these
+          # files anywhere else 404s, so a wrong prefix here means a broken
+          # deploy, not a cosmetic issue.
+          grep -Fq '"/studies/_astro/' dist/index.html
+          grep -Fq 'href="https://harsh.bet/studies/"' dist/index.html
+          # The domain lives on the user site; a CNAME here would hijack it.
+          test ! -e CNAME
+          test ! -e dist/CNAME
+          # _astro/ starts with an underscore, which Jekyll would exclude.
+          touch dist/.nojekyll
+
+      - name: No contact addresses in the published output
+        # The same promise ci.yml and refresh.yml enforce, asserted on the
+        # artifact that actually ships. `dist/.prerender/` is Astro's internal
+        # SSR staging bundle - it only survives a FAILED build, which never
+        # reaches this step. See src/components/ContactButton.astro.
+        run: |
+          set -uo pipefail
+          hits=$(grep -rEoh --exclude-dir=.prerender \
+            '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' dist || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Email addresses are present in plaintext in dist/. See src/components/ContactButton.astro for why this must not ship."
+            printf '%s\n' "$hits" | sort -u | sed 's/^/  leaked: /'
+            exit 1
+          fi
+          echo "dist/ is clean: no plaintext email addresses."
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

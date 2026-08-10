@@ -2,7 +2,9 @@
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 
-// Deployed at https://harsh.bet/r/studies/
+// Deployed at https://harsh.bet/studies/ (GitHub Pages project site; the
+// user site carries the harsh.bet custom domain, so this repo's name is the
+// path segment).
 //
 // NOTE: `output: 'static'` is not optional here. The upstream API
 // (https://research.tamu.edu/wp-json/wp/v2/study) does NOT return an
@@ -12,11 +14,11 @@ import tailwindcss from '@tailwindcss/vite';
 // client-side code.
 export default defineConfig({
   site: 'https://harsh.bet',
-  base: '/r/studies',
+  base: '/studies',
   output: 'static',
 
   // 'always' + 'directory' keeps every internal link canonical under the
-  // /r/studies/ subpath and works on any plain static host (GitHub Pages,
+  // /studies/ subpath and works on any plain static host (GitHub Pages,
   // Cloudflare Pages, nginx) without rewrite rules.
   trailingSlash: 'always',
   build: {

@@ -1,5 +1,5 @@
 /**
- * The normalized dataset as one static JSON file.  ->  /r/studies/api/studies.json
+ * The normalized dataset as one static JSON file.  ->  /studies/api/studies.json
  *
  * WHY THIS EXISTS
  * ---------------

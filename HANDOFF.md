@@ -1,4 +1,4 @@
-# Handoff — harsh.bet/r/studies
+# Handoff — harsh.bet/studies
 
 A ranked, filterable front-end for Texas A&M's Aggie Research Volunteers registry.
 TAMU publishes an open API for these 86 studies but **no browse UI** — the official page
@@ -140,10 +140,13 @@ says whether a study still enrols. Expired postings keep being served with
 
 ## Deploy
 
-See `DEPLOY.md`. `astro.config.mjs` sets `base: '/r/studies'`. For a subdomain
-(`studies.harsh.bet`) instead, change that one line.
+See `DEPLOY.md`. GitHub Pages project site: pushing to `main` runs
+`.github/workflows/deploy-pages.yml`, which tests, builds, and deploys to
+<https://harsh.bet/studies/>. `astro.config.mjs` sets `base: '/studies'`. For a
+subdomain (`studies.harsh.bet`) instead, change that one line.
 
-`.github/workflows/refresh.yml` re-fetches twice daily, commits only on change.
+`.github/workflows/refresh.yml` re-fetches twice daily, commits only on change,
+and dispatches the Pages deploy.
 `.github/workflows/ci.yml` gates on typecheck + tests + build — **currently passes.**
 
 ## Positioning — keep these

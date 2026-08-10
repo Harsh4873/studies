@@ -10,7 +10,7 @@
 #      sudden collapse in record count)
 #   3. prove the site still builds from it            (astro build)
 #   4. commit src/data/{snapshot,diff}.json           (only on a real change)
-#   5. tell the host to redeploy
+#   5. dispatch deploy-pages.yml so GitHub Pages republishes
 #
 # THREE THINGS THAT ARE EASY TO GET WRONG HERE, and how each is handled:
 #
@@ -47,6 +47,8 @@ on:
 
 permissions:
   contents: write
+  # For the final step: dispatching deploy-pages.yml via the API.
+  actions: write
 
 concurrency:
   # Two runs committing to the same branch would race on push. Never cancel a
@@ -58,13 +60,6 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
-    # Job level, not step level, on purpose: the `secrets` context cannot be
-    # read from a step's `if:`, and a step's own `env:` is not in scope for its
-    # own `if:` either. Hoisting it here is what makes "skip the deploy step
-    # when no hook is configured" expressible at all.
-    env:
-      DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -193,23 +188,17 @@ jobs:
           # meantime. The concurrency group prevents this job racing itself.
           git push || { git pull --rebase --autostash && git push; }
 
-      - name: Trigger a deploy
-        # Only needed when the host is not connected to the repo. A Git-linked
-        # Vercel/Cloudflare project already redeploys on the push above: the
-        # push webhook still fires for a GITHUB_TOKEN commit, even though such
-        # a push deliberately does not trigger `on: push` Actions workflows
-        # (which is also why this does not loop with ci.yml).
-        if: >-
-          env.DEPLOY_HOOK_URL != '' &&
-          (steps.gate.outputs.verdict == 'changed' || inputs.force_deploy)
-        run: |
-          set -euo pipefail
-          # A failing deploy hook is a real problem, unlike a failing upstream
-          # read - retry, then fail loudly rather than leaving the site stale.
-          curl --fail --silent --show-error --location \
-               --retry 3 --retry-delay 10 --retry-all-errors \
-               --request POST "$DEPLOY_HOOK_URL" > /dev/null
-          echo "Deploy hook accepted."
+      - name: Trigger a Pages deploy
+        # The snapshot commit above was pushed with GITHUB_TOKEN, and a
+        # GITHUB_TOKEN push deliberately does not fire `on: push` workflows -
+        # the same guard that stops this job looping with ci.yml. GitHub Pages
+        # therefore only picks up the new data if the deploy workflow is
+        # dispatched explicitly, which an API call with GITHUB_TOKEN is
+        # allowed to do (hence `actions: write` above).
+        if: steps.gate.outputs.verdict == 'changed' || inputs.force_deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-pages.yml --ref main
 
       - name: Summary
         if: always()

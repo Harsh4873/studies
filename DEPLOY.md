@@ -1,12 +1,16 @@
-# Deploying to `harsh.bet/r/studies`
+# Deploying to `harsh.bet/studies`
 
 This is a fully static site. There is no server, no database, and no runtime
 secret — `npm run build` emits a directory of files and the whole deploy is
 "put these files where that URL points".
 
-Everything below exists because of one fact that makes this harder than it
-sounds: **the site lives at a subpath, not at a domain root.** That single
-detail is responsible for essentially every way this deploy can break.
+It is deployed as a **GitHub Pages project site**, and one structural fact
+does most of the work: the user site (`harsh4873.github.io`) carries the
+`harsh.bet` custom domain, so every project repo on the account is served at
+the path named after it. This repo is named `studies`, therefore the site is
+`https://harsh.bet/studies/`. **The repo name IS the route** — renaming the
+repo moves the site, and no CNAME file belongs in this repo (the domain
+mapping lives entirely on the user site).
 
 ---
 
@@ -20,7 +24,7 @@ npm run build          # = npm run fetch:data && astro build
 dist/
 ├── index.html                 the ranked listing
 ├── about/index.html
-├── study/<slug>/index.html    79 detail pages
+├── study/<slug>/index.html    one detail page per live study
 ├── rss.xml                    feed of new listings
 ├── api/studies.json           the normalized dataset
 └── _astro/                    hashed CSS + JS
@@ -30,8 +34,8 @@ Two properties of this output drive everything else:
 
 | Fact | Consequence |
 |---|---|
-| `astro.config.mjs` sets `base: '/r/studies'`, so every emitted link and asset URL is absolute and prefixed — e.g. `href="/r/studies/_astro/global.<hash>.css"` | The browser will request `/r/studies/…` **from `harsh.bet`**, no matter where the files physically live. Serving `dist/` at a domain root gives you an unstyled page and a 404 for every asset. |
-| `trailingSlash: 'always'` + `build.format: 'directory'` | Internal links all end in `/` and resolve to `index.html`. Configure the host to match, or you get a redirect on every navigation. Bare `/r/studies` (no slash) is **not** a route — the rules in §3 and §5 each handle it explicitly. |
+| `astro.config.mjs` sets `base: '/studies'`, so every emitted link and asset URL is absolute and prefixed — e.g. `href="/studies/_astro/global.<hash>.css"` | The browser will request `/studies/…` **from `harsh.bet`**, no matter where the files physically live. Serving `dist/` anywhere but under `/studies/` gives you an unstyled page and a 404 for every asset. On Pages the repo name keeps this true by construction. |
+| `trailingSlash: 'always'` + `build.format: 'directory'` | Internal links all end in `/` and resolve to `index.html`. GitHub Pages redirects bare directory paths (`/studies/about`) to the slashed form, which matches. |
 
 `rss.xml` and `api/studies.json` keep their extensions and are *not* affected
 by `trailingSlash` — they are served at exactly those two paths.
@@ -41,7 +45,7 @@ by `trailingSlash` — they are served at exactly those two paths.
 | | |
 |---|---|
 | Node | ≥ 22.12 (`.nvmrc` pins 22.22.2) |
-| Build command | `npm run build` — **not** `astro build`. The `fetch:data` half is what puts `src/data/*.json` on disk, and three modules import those files directly, so a bare `astro build` fails to resolve `@/data/snapshot.json`. |
+| Build command | `npm run build` — **not** `astro build`. The `fetch:data` half is what puts `src/data/*.json` on disk, and three modules import those files directly, so a bare `astro build` fails to resolve `@/data/snapshot.json`. (The workflows run the two halves as separate steps for the same reason.) |
 | Output directory | `dist` |
 | Install command | `npm ci` |
 | Network at build time | Wanted, not required. `fetch:data` falls back to `fixtures/arv-snapshot.json` and exits 0 if `research.tamu.edu` is unreachable, so a TAMU outage produces a stale deploy rather than a failed one. Check the build log for `source FIXTURE  <-- STALE DATA`. |
@@ -49,34 +53,21 @@ by `trailingSlash` — they are served at exactly those two paths.
 
 ---
 
-## 2. Repository setup (do this once)
+## 2. Repository setup (already done, recorded for reference)
 
-The two workflows only exist once the project is a Git repo on GitHub:
+The repo is `harsh4873/studies`, public (GitHub Pages on a personal account
+requires it). Pages is configured with build type **GitHub Actions** —
+`deploy-pages.yml` runs `actions/configure-pages` with `enablement: true`, so
+the Pages site created itself on the first deploy; there was no manual
+*Settings → Pages* step.
 
-```bash
-git init && git add . && git commit -m "initial" && git branch -M main
-gh repo create <owner>/studies-site --private --source . --push
-```
+One setting that must hold: **Settings → Actions → General → Workflow
+permissions → Read and write permissions.** `refresh.yml` declares
+`permissions: contents: write`, but a workflow can only narrow the repository
+default, never widen it. If the repo default is read-only, the refresh job
+runs green and silently fails at `git push`.
 
-Then, in **Settings → Actions → General → Workflow permissions**, select
-**Read and write permissions**. `refresh.yml` declares `permissions: contents:
-write`, but a workflow can only narrow the repository default, never widen it.
-If the repo default is read-only, the refresh job runs green and silently fails
-at `git push`.
-
-### Secrets
-
-| Secret | Required? | Used by | What it is |
-|---|---|---|---|
-| `DEPLOY_HOOK_URL` | Only if the host is **not** connected to the repo | `refresh.yml` | A POST-to-rebuild URL. Vercel: *Project → Settings → Git → Deploy Hooks*. Cloudflare Pages: *Project → Settings → Builds & deployments → Deploy hooks*. |
-| `GITHUB_TOKEN` | automatic | `refresh.yml` | Provided by Actions. Nothing to configure. |
-
-If Vercel or Cloudflare Pages is connected to the GitHub repo, skip
-`DEPLOY_HOOK_URL` entirely — the data commit that `refresh.yml` pushes is an
-ordinary push and the host's GitHub App redeploys on it. (This does not create
-a loop with `ci.yml`: a push made with `GITHUB_TOKEN` deliberately does not
-trigger `on: push` workflows, while the webhook to third-party apps still
-fires.)
+No secrets are required. Everything runs on the automatic `GITHUB_TOKEN`.
 
 ### One thing that will look like a bug
 
@@ -88,228 +79,50 @@ fires.)
 - It is force-committed by the refresh job because `snapshot.json` is also the
   **diff baseline**. `fetch:data` computes "what changed" by comparing against
   the snapshot already on disk. With nothing committed, every run sees an empty
-  baseline and reports all 79 studies as newly added.
+  baseline and reports every study as newly added.
 
 ---
 
-## 3. Option A — Vercel
+## 3. The three workflows
 
-1. **New Project → import the repo.** Framework preset: Astro.
-2. Build command `npm run build`, output directory `dist`, install `npm ci`.
-3. Node version: Vercel reads `.nvmrc`. Confirm it resolved to 22.x in the log.
-4. Add `vercel.json` at the repo root:
+### `.github/workflows/deploy-pages.yml` — the deploy
 
-```json
-{
-  "trailingSlash": true,
-  "rewrites": [
-    { "source": "/r/studies", "destination": "/index.html" },
-    { "source": "/r/studies/:path*", "destination": "/:path*" }
-  ],
-  "headers": [
-    {
-      "source": "/api/studies.json",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
-        { "key": "Cache-Control", "value": "public, max-age=600, s-maxage=3600" }
-      ]
-    },
-    {
-      "source": "/rss.xml",
-      "headers": [
-        { "key": "Content-Type", "value": "application/rss+xml; charset=utf-8" },
-        { "key": "Cache-Control", "value": "public, max-age=600, s-maxage=3600" }
-      ]
-    },
-    {
-      "source": "/_astro/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
-    }
-  ]
-}
-```
-
-**Why the rewrites.** `dist/index.html` is deployed at the root of the Vercel
-deployment, so it answers at `/`. But the HTML inside it asks for
-`/r/studies/_astro/…`, and whatever fronts `harsh.bet` will forward requests
-that still carry the `/r/studies` prefix. The two rewrite rules make the
-deployment answer at *both* paths, which means the same deployment works when
-you hit the `*.vercel.app` URL directly and when it is proxied under the real
-subpath. Without them you get a page that renders as unstyled HTML — the
-classic symptom of a base-path mismatch.
-
-`_astro/` filenames are content-hashed, hence the one-year immutable cache. Do
-**not** cache `index.html`, `rss.xml`, or `api/studies.json` that aggressively:
-their URLs are stable while their contents change twice a day.
-
----
-
-## 4. Option B — Cloudflare Pages
-
-1. **Workers & Pages → Create → Pages → Connect to Git.**
-2. Build command `npm run build`, output directory `dist`.
-3. Add an environment variable `NODE_VERSION = 22.22.2` — Pages does not read
-   `.nvmrc` reliably and its default Node is too old for this project.
-4. Cloudflare Pages takes routing and header config from two files that must
-   end up at the **root of `dist/`**. Astro copies `public/` to the output root
-   verbatim (public files are *not* moved under `base`), so create them there:
-
-`public/_redirects`
-
-```
-# Serve the subpath from the same deployment as the root.
-# 200 = rewrite (serve this content), not a redirect - the browser URL keeps
-# the /r/studies prefix, which is what the emitted HTML expects.
-/r/studies/*  /:splat  200
-```
-
-`public/_headers`
-
-```
-/api/studies.json
-  Access-Control-Allow-Origin: *
-  Content-Type: application/json; charset=utf-8
-  Cache-Control: public, max-age=600
-
-/rss.xml
-  Content-Type: application/rss+xml; charset=utf-8
-  Cache-Control: public, max-age=600
-
-/_astro/*
-  Cache-Control: public, max-age=31536000, immutable
-```
-
-If `harsh.bet` proxies with the prefix intact, add the prefixed variants too
-(`/r/studies/api/studies.json`, `/r/studies/rss.xml`) — `_headers` matches on
-the request path, not on the file that ends up being served.
-
-Cloudflare Pages defaults to redirecting `/foo` → `/foo/`, which already
-matches `trailingSlash: 'always'`. Leave it alone.
-
----
-
-## 5. Pointing `harsh.bet/r/studies` at the deployment
-
-The contract to hold onto, whatever fronts the apex:
-
-> The HTML contains absolute paths beginning `/r/studies/`. The browser
-> therefore requests `https://harsh.bet/r/studies/…`. The **only** open
-> question is what the edge does with that prefix on the way to the files.
-
-Prefer a **rewrite / reverse proxy**, not a redirect. A 301 to another hostname
-changes the address bar, splits the origin, and breaks the canonical URLs and
-the feed's self-link.
-
-### If the apex is on Vercel
-
-In the **apex** project's `vercel.json` (the site that owns `harsh.bet`):
-
-```json
-{
-  "rewrites": [
-    { "source": "/r/studies", "destination": "https://studies-site.vercel.app/r/studies" },
-    { "source": "/r/studies/:path*", "destination": "https://studies-site.vercel.app/r/studies/:path*" }
-  ]
-}
-```
-
-The prefix is preserved on both sides, and the studies project's own rewrites
-(§3) resolve it to the right file.
-
-### If the apex is on Cloudflare (DNS proxied, orange cloud)
-
-Add a Worker on the route `harsh.bet/r/studies*`:
-
-```js
-export default {
-  async fetch(request) {
-    const url = new URL(request.url);
-    // Keep the path exactly as-is; only the origin changes.
-    url.hostname = 'studies-site.pages.dev';
-    return fetch(new Request(url, request));
-  },
-};
-```
-
-Alternatively, if the studies project is itself a Pages project on the same
-Cloudflare account, skip the Worker: give it the custom domain `harsh.bet`
-only if nothing else owns the apex. Otherwise the Worker is the clean answer.
-
-### If the apex is on nginx
-
-```nginx
-location /r/studies/ {
-    proxy_pass         https://studies-site.pages.dev/r/studies/;
-    proxy_set_header   Host studies-site.pages.dev;
-    proxy_ssl_server_name on;
-}
-location = /r/studies {
-    return 308 /r/studies/;
-}
-```
-
-### If the apex is on Netlify
-
-`_redirects` on the apex site:
-
-```
-/r/studies/*  https://studies-site.pages.dev/r/studies/:splat  200
-```
-
-### If your edge strips the prefix
-
-Some proxies forward `/r/studies/foo` upstream as `/foo`. That is fine and it
-is exactly what the Vercel/Pages rules in §3–§4 already handle — those rules
-make the deployment answer on both the bare and prefixed forms. What must
-*never* change is `base` in `astro.config.mjs`: the prefix in the emitted HTML
-is what the browser uses, and it has to keep matching the public URL.
-
-### Serving the files directly (no proxy)
-
-If `harsh.bet` is a plain static host you control, the simplest correct answer
-is to skip all rewrites and copy the build into the matching directory:
-
-```bash
-rsync -a --delete dist/ /var/www/harsh.bet/r/studies/
-```
-
-The directory structure then *is* the URL structure and nothing needs
-rewriting. This is the least breakable option available.
-
----
-
-## 6. Automation
-
-Two workflows, doing two different jobs.
+Runs on every push to `main` and on manual dispatch: `npm ci` → `fetch:data`
+(fixture fallback) → require a usable snapshot → typecheck → `vitest run` →
+`astro build` → validate the artifact (the `/studies/` prefix is present, no
+CNAME, no plaintext contact addresses anywhere in `dist/`) → upload →
+`actions/deploy-pages`. **Pushing to `main` IS the deploy.**
 
 ### `.github/workflows/ci.yml` — the gate
 
-Runs on every push to `main` and every pull request: `npm ci` →
-`fetch:data` → typecheck (`astro check` + `tsc --noEmit`) → `vitest run` →
-`astro build` → assert `dist/index.html`, `dist/rss.xml`, and
-`dist/api/studies.json` exist and parse. Uploads `dist/` as an artifact.
+Runs on every push to `main` and every pull request: same fetch → typecheck →
+test → build pipeline, then asserts `dist/index.html`, `dist/rss.xml`, and
+`dist/api/studies.json` exist and parse, and greps `dist/` for leaked contact
+addresses. Uploads `dist/` as an inspectable artifact.
 
-Step order matters: `fetch:data` runs **before** the typecheck, because
-`src/data/` is git-ignored and `index.astro`, `study/[slug].astro`, and
-`api/studies.json.ts` all `import` `@/data/snapshot.json` directly. Without the
-fetch, the typecheck fails with a module-resolution error that reads like a
-code bug and is really a missing build input.
-
-The fetch step itself is not a gate — it falls back to the fixture — but a
-follow-up step fails the run if that still left no usable snapshot.
+Step order matters in both: `fetch:data` runs **before** the typecheck,
+because `src/data/` is git-ignored and `index.astro`, `study/[slug].astro`,
+and `api/studies.json.ts` all `import` `@/data/snapshot.json` directly.
+Without the fetch, the typecheck fails with a module-resolution error that
+reads like a code bug and is really a missing build input.
 
 ### `.github/workflows/refresh.yml` — the twice-daily pull
 
 Runs at 11:17 and 23:17 UTC (≈ 06:17 / 18:17 America/Chicago; cron does not
-follow daylight saving) and on manual dispatch. It fetches, decides whether the
-result is publishable, verifies the site still builds from it, commits
-`src/data/snapshot.json` and `src/data/diff.json`, and triggers a deploy.
+follow daylight saving) and on manual dispatch. It fetches, decides whether
+the result is publishable, verifies the site still builds from it, commits
+`src/data/snapshot.json` and `src/data/diff.json`, and then **dispatches
+`deploy-pages.yml`**.
 
-Three refusals are built in, and each one exists because of a specific way this
-could publish something wrong:
+The dispatch is load-bearing: the snapshot commit is pushed with
+`GITHUB_TOKEN`, and a `GITHUB_TOKEN` push deliberately does not fire
+`on: push` workflows (the same guard that stops the refresh job looping with
+`ci.yml`). Pages therefore only picks up new data because the refresh job
+explicitly asks for a deploy — which an API call with `GITHUB_TOKEN` *is*
+allowed to do (`permissions: actions: write`).
+
+Three refusals are built in, each because of a specific way this could
+publish something wrong:
 
 | Condition | What happens | Why |
 |---|---|---|
@@ -317,10 +130,10 @@ could publish something wrong:
 | Record count dropped by more than half | Warn; commit nothing | A partial upstream response can parse cleanly. Publishing it would gut the index for twelve hours. Re-run manually if upstream genuinely shrank. |
 | Only `fetchedAt` differs | Commit nothing | `snapshot.json` embeds a fetch timestamp, so it is byte-different on every single run. `git diff --quiet` would therefore commit twice a day forever. The check compares `studies` only. |
 
-That last check still catches the passage of time: `isExpired` and `staleness`
-are recomputed against the clock, so a posting lapsing overnight is a real
-change and does trigger a commit and a deploy even when upstream sent identical
-bytes.
+That last check still catches the passage of time: `isExpired` and
+`staleness` are recomputed against the clock, so a posting lapsing overnight
+is a real change and does trigger a commit and a deploy even when upstream
+sent identical bytes.
 
 Concurrency group `refresh-data`, `cancel-in-progress: false` — cancelling a
 run between `git commit` and `git push` is worse than waiting.
@@ -330,9 +143,9 @@ run between `git commit` and `git push` is worse than waiting.
 
 ---
 
-## 7. The two new public artifacts
+## 4. The two public artifacts
 
-### `/r/studies/rss.xml`
+### `/studies/rss.xml`
 
 An RSS 2.0 feed of newly listed studies, so the site can be subscribed to
 rather than checked. Every item title leads with the money —
@@ -343,12 +156,11 @@ enforces apply: `Unpaid`, `Drawing entry only`, `$400 total, rate unknown`,
 
 **Worth knowing if you change it:** the feed is *not* built purely from
 `diff.json`, even though `diff.json` is the obvious source. The diff is
-ephemeral in a way that fights the deploy model — `npm run build` re-runs
-`fetch:data`, which re-diffs against the snapshot the refresh job committed
-minutes earlier and produces an empty diff; and a host building from a clean
-checkout has no committed snapshot at all, so its diff reports all 79 studies
-as new. A diff-only feed would swing between 0 and 79 items depending on which
-of those happened.
+ephemeral in a way that fights the deploy model — the deploy build re-fetches
+and re-diffs against the snapshot the refresh job committed minutes earlier
+and produces an empty diff; and a build from a clean checkout has no committed
+snapshot at all, so its diff reports every study as new. A diff-only feed
+would swing between 0 and everything depending on which of those happened.
 
 So the feed's spine is `postedDate` (upstream `date_gmt`) — a property of the
 study itself, identical on every machine — and `diff.added` is folded in as a
@@ -361,7 +173,7 @@ are content hashes, so an edit announces itself once.
 > `src/layouts/Base.astro`, which is what makes browsers and readers
 > auto-discover the feed from the page. That file belongs to the UI layer.
 
-### `/r/studies/api/studies.json`
+### `/studies/api/studies.json`
 
 The full normalized dataset as one static file: `{ meta, studies }`, where each
 entry is `src/types.ts`'s `StudyRecord` plus a `detailUrl`. Same parse, same
@@ -380,51 +192,54 @@ file containing all of them is precisely the harvest list that
 `ContactButton.astro` tokenises the HTML to prevent. Consumers who need a
 contact should follow each record's `url` to the official listing.
 `api/studies.json.ts` throws at build time if an address reaches the payload,
-and both workflows grep the whole of `dist/` as a backstop, so this cannot
-regress silently. `meta.schemaVersion` is `2` as of that change.
+and all three workflows grep the whole of `dist/` as a backstop, so this
+cannot regress silently. `meta.schemaVersion` is `2` as of that change.
 
-**This is why §3 and §4 set headers.** With `output: 'static'` Astro runs the
-endpoint at build time and writes the body to a file; the `Headers` in the
-`Response` only take effect under `astro dev` and `astro preview`. In
-production the `Access-Control-Allow-Origin: *` that makes the dataset usable
-from a browser has to come from the host. Skip that config and the file still
-serves — it just cannot be fetched cross-origin, which defeats the point of
-publishing it.
+**Headers on GitHub Pages.** With `output: 'static'` Astro runs the endpoint
+at build time and writes the body to a file; the `Headers` in the `Response`
+only take effect under `astro dev` and `astro preview`. In production the
+headers are whatever GitHub Pages sends — which happens to be exactly enough:
+Pages serves everything with `Access-Control-Allow-Origin: *` (so the dataset
+is fetchable from any browser), sets `Content-Type` from the file extension,
+and applies its fixed ~10-minute cache, which suits data that changes twice a
+day. Pages offers no per-path header config, so nothing further to do — but if
+this ever moves hosts, CORS on `/studies/api/studies.json` must be recreated
+deliberately or publishing the dataset stops working cross-origin.
 
 ---
 
-## 8. Verifying a deploy
+## 5. Verifying a deploy
 
 ```bash
 # 1. Locally, honouring `base` - this is what catches subpath mistakes.
-npm run build && npm run preview      # -> http://localhost:4321/r/studies/
+npm run build && npm run preview      # -> http://localhost:4321/studies/
 
 # 2. After deploying, in order of what breaks most often:
-curl -sI https://harsh.bet/r/studies/ | head -1                   # 200
-curl -s  https://harsh.bet/r/studies/ | grep -o '/r/studies/_astro/[^"]*' | head -1
-curl -sI "https://harsh.bet$(curl -s https://harsh.bet/r/studies/ | grep -o '/r/studies/_astro/[^"]*' | head -1)" | head -1   # 200, not 404
+curl -sI https://harsh.bet/studies/ | head -1                   # 200
+curl -s  https://harsh.bet/studies/ | grep -o '/studies/_astro/[^"]*' | head -1
+curl -sI "https://harsh.bet$(curl -s https://harsh.bet/studies/ | grep -o '/studies/_astro/[^"]*' | head -1)" | head -1   # 200, not 404
 
-curl -s https://harsh.bet/r/studies/rss.xml | head -5             # <?xml ...
-curl -sI https://harsh.bet/r/studies/api/studies.json | grep -i access-control
-curl -s  https://harsh.bet/r/studies/api/studies.json | jq '.meta.count, .meta.generatedAt'
-curl -sI https://harsh.bet/r/studies/study/aperiodic-slope-and-mri/ | head -1   # 200
+curl -s https://harsh.bet/studies/rss.xml | head -5             # <?xml ...
+curl -sI https://harsh.bet/studies/api/studies.json | grep -i access-control
+curl -s  https://harsh.bet/studies/api/studies.json | jq '.meta.count, .meta.generatedAt'
 ```
 
 The second and third commands are the important pair: a 200 on the page plus a
-404 on its stylesheet is the signature of a base-path or rewrite mistake, and
-it is easy to miss because the page still "loads".
+404 on its stylesheet is the signature of a base-path mistake, and it is easy
+to miss because the page still "loads".
 
 Then check freshness: `.meta.generatedAt` in the JSON should be within about
 twelve hours, and the footer timestamp on the page should agree with it.
 
-## 9. Troubleshooting
+## 6. Troubleshooting
 
 | Symptom | Cause |
 |---|---|
-| Page renders as unstyled HTML | Assets 404. `dist/` is being served at a root instead of under `/r/studies/`, or the rewrite in §3/§4 is missing. |
+| Page renders as unstyled HTML | Assets 404. `base` in `astro.config.mjs` no longer matches the repo name, or `dist/` is being served somewhere other than `/studies/`. |
+| Everything 404s under `/studies/` | The Pages site is gone or was switched off the *GitHub Actions* build type. Re-run `deploy-pages.yml`; `configure-pages` re-creates it. |
 | `Cannot find module '@/data/snapshot.json'` | The build ran `astro build` without `fetch:data`. Use `npm run build`. |
 | Every study shows as new in the feed | No committed `snapshot.json`, so the diff had no baseline. Expected on a first deploy; resolves after the first `refresh.yml` run. Feed guids are permalinks, so nobody gets notified twice. |
 | Refresh job green but nothing deploys | Verdict was `unchanged` (nothing material moved) or `skip` (fixture fallback / suspicious record count). Check the job summary. |
 | Refresh job green but no commit lands | Repo workflow permissions are read-only — see §2. |
-| Site shows a stale footer timestamp after a refresh | The host is not connected to the repo and `DEPLOY_HOOK_URL` is unset. |
+| Site shows a stale footer timestamp after a refresh | The `gh workflow run` dispatch step failed, or the dispatched deploy run failed. Check both runs in the Actions tab. |
 | `source FIXTURE <-- STALE DATA` in the build log | Upstream was unreachable at build time. The deploy is intentionally still good; the data is as old as the fixture. |

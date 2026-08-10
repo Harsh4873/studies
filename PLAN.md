@@ -1,4 +1,4 @@
-# harsh.bet/r/studies — Build Plan
+# harsh.bet/studies — Build Plan
 
 A ranked, filterable front-end for Texas A&M's paid research study registry.
 
@@ -106,7 +106,7 @@ Tailwind 3 — with Astro 7 + Tailwind 4 you must wire Tailwind through
 `@tailwindcss/vite` instead. And `@astrojs/check` peers TypeScript `^5||^6`, so
 TypeScript 7 breaks `astro check` even though it's published.
 
-**Base path:** the site lives at a subpath, so `base: '/r/studies'` in `astro.config.mjs`,
+**Base path:** the site lives at a subpath, so `base: '/studies'` in `astro.config.mjs`,
 and every internal link and asset must respect it. This is the single most common way a
 subpath deploy silently ships broken.
 

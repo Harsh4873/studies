@@ -33,7 +33,7 @@ import type { RawStudy, TaxonomyMaps, TaxonomyTerm } from '@/types.ts';
  * Anonymous scraping of a public university endpoint is how you get blocked.
  */
 export const USER_AGENT =
-  'studies-site/1.0 (+https://harsh.bet/r/studies; build-time aggregator of public TAMU study listings; static site, one fetch per deploy)';
+  'studies-site/1.0 (+https://harsh.bet/studies; build-time aggregator of public TAMU study listings; static site, one fetch per deploy)';
 
 /** Upstream returns everything in one page at this size (86 records today). */
 export const DEFAULT_PER_PAGE = 100;

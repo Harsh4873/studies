@@ -3,7 +3,7 @@
 A browsable, sortable index of the paid research studies Texas A&M University
 recruits volunteers for — ranked by **effective hourly pay**.
 
-Live at <https://harsh.bet/r/studies>.
+Live at <https://harsh.bet/studies>.
 
 ## Why this exists
 
@@ -85,20 +85,26 @@ npm run typecheck    # astro check + tsc --noEmit
 
 `src/data/` is generated and git-ignored. `fixtures/` is committed on purpose.
 
-## Deploying under the `/r/studies` subpath
+## Deploying under the `/studies` subpath
+
+This is a GitHub Pages project site. The user site (`harsh4873.github.io`)
+carries the `harsh.bet` custom domain, so this repo is served at the path
+named after it. Every push to `main` runs
+`.github/workflows/deploy-pages.yml`, which tests, builds, and deploys —
+that push IS the deploy. `DEPLOY.md` has the full picture.
 
 The site is not served from a domain root, which is the usual source of broken
 static deploys. `astro.config.mjs` sets:
 
 ```js
 site: 'https://harsh.bet',
-base: '/r/studies',
+base: '/studies',
 trailingSlash: 'always',
 build: { format: 'directory' },
 ```
 
-`npm run build` emits `dist/`, whose contents map to `https://harsh.bet/r/studies/`.
-Upload `dist/` so that `dist/index.html` resolves at `/r/studies/index.html`.
+`npm run build` emits `dist/`, whose contents map to `https://harsh.bet/studies/`.
+Upload `dist/` so that `dist/index.html` resolves at `/studies/index.html`.
 
 Two rules when writing links and asset paths:
 

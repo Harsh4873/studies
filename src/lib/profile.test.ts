@@ -217,7 +217,7 @@ describe('sanitisation - unknown must never become "no"', () => {
 // ---------------------------------------------------------------------------
 
 describe('migration', () => {
-  const KEY = 'harsh.bet/r/studies:profile';
+  const KEY = 'harsh.bet/studies:profile';
 
   it('upgrades a v1 bare profile object into the v2 envelope', async () => {
     const { mod, map } = await loadInBrowser({

@@ -172,7 +172,7 @@ const extraFlags = elig.flags.length - shownFlags.length;
 const rawComp = scrubEmails(stripHtml(comp.raw)).trim();
 const rawDur = scrubEmails(stripHtml(dur.raw)).trim();
 
-/** Local detail page for this study. Must respect the /r/studies base path. */
+/** Local detail page for this study. Must respect the /studies base path. */
 const detailHref = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/study/${study.slug}/`;
 
 const showParseNote =
