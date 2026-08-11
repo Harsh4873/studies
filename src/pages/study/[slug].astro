@@ -92,12 +92,19 @@ const d = study.duration;
 const e = study.eligibility;
 
 const bucket: RateBucket = rateBucket(study.effectiveHourly);
+/**
+ * Two states, not five. Colour on this site says how certain the money is,
+ * never how much of it there is — a rate that could be computed is money
+ * green, a rate that could not is neutral. The size of the figure is what
+ * carries the amount. `rateBucket` still classifies the rate; it just does
+ * not choose a colour any more.
+ */
 const BUCKET_STYLE: Record<RateBucket, string> = {
-  unknown: 'bg-gray-100 text-gray-700 border-gray-300',
-  low: 'bg-gray-100 text-gray-800 border-gray-300',
-  ok: 'bg-amber-50 text-amber-900 border-amber-300',
-  good: 'bg-brand-50 text-brand-700 border-brand-500',
-  great: 'bg-brand-50 text-brand-700 border-brand-700',
+  unknown: 'rate-panel rate-panel-unknown',
+  low: 'rate-panel rate-panel-money',
+  ok: 'rate-panel rate-panel-money',
+  good: 'rate-panel rate-panel-money',
+  great: 'rate-panel rate-panel-money',
 };
 
 /** Human summary of the guaranteed pay, kept separate from raffle value. */
