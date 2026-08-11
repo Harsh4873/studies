@@ -118,33 +118,58 @@ const description = `${live.length} currently posted paid research studies at Te
   studyCount={all.length}
 >
   <header class="site-header" slot="header">
-    <div class="wrap">
-      <h1 class="site-title">Paid research studies at Texas A&amp;M</h1>
-      <p class="site-sub">
-        {live.length} live postings ranked by guaranteed pay per hour of your time
-        {
-          topRate !== undefined && (
-            <>
-              , topping out at ${Math.round(topRate.effectiveHourly as number)}/hr
-            </>
-          )
-        }. Raffles are never counted as pay.
-      </p>
+    <div class="wrap wrap-wide">
+      <div class="masthead">
+        <div class="masthead-copy">
+          <h1 class="site-title">Paid research studies at Texas A&amp;M</h1>
+          <p class="site-sub">
+            Ranked by guaranteed pay per hour of your time. Raffles are never counted as pay.
+          </p>
+        </div>
+        <dl class="masthead-stats">
+          <div>
+            <dt>Live postings</dt>
+            <dd>{live.length}</dd>
+          </div>
+          {
+            topRate !== undefined && (
+              <div>
+                <dt>Top rate</dt>
+                <dd class="masthead-stat-money">
+                  ${Math.round(topRate.effectiveHourly as number)}
+                  <span>/hr</span>
+                </dd>
+              </div>
+            )
+          }
+          <div>
+            <dt>Ranked</dt>
+            <dd>
+              {ranked.length}
+              <span>of {live.length}</span>
+            </dd>
+          </div>
+        </dl>
+      </div>
     </div>
   </header>
 
-  <main class="wrap" id="main">
-    {/* Owned by the profile agent. Collapsed here; the study pages open it. */}
-    <ProfilePanel class="profile-panel-index" />
+  <main class="wrap wrap-wide" id="main">
+    <div class="app-grid">
+      <aside class="app-side" aria-label="Filters">
+        {/* Owned by the profile agent. Collapsed here; the study pages open it. */}
+        <ProfilePanel class="profile-panel-index" />
 
-    <FilterBar tagFacets={tagFacets} />
+        <FilterBar tagFacets={tagFacets} />
+      </aside>
 
-    <p class="result-count" id="result-count" role="status" aria-live="polite">
-      Showing <strong>{ranked.length + unrated.length}</strong> of {live.length} live studies.
-    </p>
-    <p class="note" id="unknown-note" hidden></p>
+      <div class="app-main">
+        <p class="result-count" id="result-count" role="status" aria-live="polite">
+          Showing <strong>{ranked.length + unrated.length}</strong> of {live.length} live studies.
+        </p>
+        <p class="note" id="unknown-note" hidden></p>
 
-    <div id="results">
+        <div id="results">
       <section class="section" id="section-ranked" aria-labelledby="h-ranked">
         <h2 class="section-head" id="h-ranked">Ranked by hourly rate</h2>
         <p class="section-note">
@@ -219,6 +244,8 @@ const description = `${live.length} currently posted paid research studies at Te
           </details>
         )
       }
+        </div>
+      </div>
     </div>
   </main>
 

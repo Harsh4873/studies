@@ -627,6 +627,17 @@ a {
   background: var(--chance-bg);
   border: 1px dashed var(--chance-border);
 }
+/*
+ * The money badges stay rigid so "PER HOUR" never wraps. Only the two
+ * variants whose label is a phrase rather than a unit are allowed to shrink
+ * and wrap — left rigid, they pushed the card sideways off a 320px screen.
+ */
+.rate-unknown,
+.rate-chance {
+  flex: 0 1 auto;
+  max-width: 45%;
+}
+
 .rate-chance .rate-value,
 .rate-unknown .rate-value {
   font-size: 0.875rem;
@@ -797,5 +808,194 @@ a {
   * {
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   Laptop and desktop layout.
+
+   Everything above is authored mobile-first and stays untouched below 64rem.
+   The listing page's problem on a laptop was not styling but proportion: a
+   46rem column centred in a 90rem viewport left most of the screen empty and
+   pushed the 63 results into one very long scroll. From 64rem the page
+   becomes a two-column app — a sticky filter rail beside a results column —
+   and from 85rem the results themselves go two-up.
+   ========================================================================== */
+
+.masthead-stats {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .wrap-wide {
+    max-width: 84rem;
+    padding: 0 1.5rem;
+  }
+
+  /* -- masthead ---------------------------------------------------------- */
+  .site-header {
+    padding: 1.5rem 0 1.375rem;
+  }
+  .masthead {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2.5rem;
+  }
+  .masthead-copy {
+    min-width: 0;
+  }
+  .site-title {
+    font-size: 1.75rem;
+    letter-spacing: -0.02em;
+  }
+  .site-sub {
+    font-size: 0.9375rem;
+    max-width: 46rem;
+  }
+  .masthead-stats {
+    display: flex;
+    flex: none;
+    gap: 2rem;
+    margin: 0;
+  }
+  .masthead-stats div {
+    text-align: right;
+  }
+  .masthead-stats dt {
+    font-size: 0.6875rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .masthead-stats dd {
+    margin: 0.125rem 0 0;
+    font-size: 1.375rem;
+    font-weight: 660;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .masthead-stats dd span {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0;
+  }
+  .masthead-stat-money {
+    color: var(--money-fg);
+  }
+
+  /* -- two-column shell -------------------------------------------------- */
+  .app-grid {
+    display: grid;
+    grid-template-columns: 19.5rem minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+    padding-top: 1.25rem;
+  }
+
+  /*
+   * The rail scrolls with its own overflow so a long tag list never pushes
+   * the reset button off-screen, and `contain` keeps that scroll from
+   * stealing the page's once it bottoms out.
+   */
+  .app-side {
+    position: sticky;
+    top: 1.25rem;
+    max-height: calc(100vh - 2.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.25rem;
+  }
+  .app-side::-webkit-scrollbar {
+    width: 8px;
+  }
+  .app-side::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  .app-main {
+    min-width: 0;
+  }
+
+  /* In a 19.5rem rail the paired selects are too narrow side by side. */
+  .app-side .field-row,
+  .app-side .field-row-3 {
+    grid-template-columns: 1fr;
+    gap: 0.625rem;
+  }
+  .app-side .filters,
+  .app-side .profile-panel-index {
+    margin: 0 0 0.875rem;
+  }
+  .app-side .control {
+    min-height: 40px;
+    font-size: 0.9375rem;
+  }
+
+  /* -- results ----------------------------------------------------------- */
+  .result-count {
+    margin-top: 0;
+  }
+  .section:first-child {
+    margin-top: 1rem;
+  }
+  .section-head {
+    font-size: 1.0625rem;
+    padding-bottom: 0.4375rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-note {
+    max-width: 60rem;
+  }
+
+  .card {
+    padding: 0.9375rem 1rem;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .card:hover {
+    border-color: var(--border-strong);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.07), 0 4px 12px rgb(0 0 0 / 0.05);
+  }
+  .card-title {
+    font-size: 1.0625rem;
+  }
+  /* Two lines is enough of a taste at this density; the detail page has all of it. */
+  .card-summary {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .facts dt {
+    width: 4.75rem;
+  }
+}
+
+@media (min-width: 85rem) {
+  /*
+   * Two-up. Rank order still reads correctly: the grid fills row by row, so
+   * left-to-right is still best-rate-first.
+   */
+  .card-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.875rem;
+  }
+  /*
+   * Equal-height rows are the point of a grid, but the slack has to land
+   * somewhere deliberate: the card becomes a column and the footer is pushed
+   * to the bottom, so a short card shows one clean gap above its rule rather
+   * than a ragged edge.
+   */
+  .card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .card-foot {
+    margin-top: auto;
   }
 }
