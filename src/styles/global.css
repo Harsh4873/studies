@@ -38,19 +38,22 @@
    thing allowed to use the green "money" ramp; a drawing is always the
    dashed violet "chance" treatment with an explicit "not guaranteed" label.
 
-   Every foreground/background pair below was picked to clear WCAG AA (4.5:1
-   for body text, 3:1 for large text and UI borders) in both schemes.
+   Every foreground/background pair below clears WCAG AA (4.5:1 for body
+   text, 3:1 for large text and UI borders) in both schemes. `--border` is a
+   decorative hairline; `--border-strong` is the one that outlines real
+   controls, so it is held to the 3:1 non-text contrast rule.
    ========================================================================== */
 :root {
   color-scheme: light dark;
 
-  --bg: #f4f5f3;
+  /* Radix Sage — a neutral carrying a whisper of the accent's own hue. */
+  --bg: #f7f9f8;
   --surface: #ffffff;
-  --surface-2: #f0f1ef;
-  --text: #14171a;
-  --muted: #53585e;
-  --border: #d5d8dc;
-  --border-strong: #b3b8bf;
+  --surface-2: #eef1f0;
+  --text: #1a211e;
+  --muted: #5f6563;
+  --border: #d7dad9;
+  --border-strong: #868e8b;
   --focus: #0b57d0;
   --link: #0b4fbd;
 
@@ -70,12 +73,12 @@
   --rate-low-bg: #fbeed3;
 
   /* Unpaid: a known, honest zero. Not "unknown". */
-  --zero-fg: #4a4f55;
-  --zero-bg: #e9eaec;
+  --zero-fg: #5f6563;
+  --zero-bg: #eef1f0;
 
   /* Unknown / unrankable. Never green, never a number we cannot defend. */
-  --unknown-fg: #4a4f55;
-  --unknown-bg: #eceef0;
+  --unknown-fg: #5f6563;
+  --unknown-bg: #eef1f0;
 
   /* Raffle / drawing. Must never read as money in hand. */
   --chance-fg: #59308f;
@@ -89,12 +92,12 @@
   --aging-bg: #fbeed3;
   --stale-fg: #7a3708;
   --stale-bg: #fbe6d6;
-  --dead-fg: #4a4f55;
-  --dead-bg: #e6e7e9;
+  --dead-fg: #5f6563;
+  --dead-bg: #e6e9e8;
 
-  --chip-fg: #33383e;
-  --chip-bg: #eef0f2;
-  --chip-border: #d3d7db;
+  --chip-fg: #333a37;
+  --chip-bg: #eef1f0;
+  --chip-border: #cbcfcd;
 
   --warn-fg: #7a3708;
   --warn-bg: #fdf2e6;
@@ -106,13 +109,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0e1013;
-    --surface: #181b1f;
-    --surface-2: #1f2328;
-    --text: #e8eaec;
-    --muted: #a7aeb6;
-    --border: #2d3238;
-    --border-strong: #454c54;
+    /* Radix Sage Dark. The old ramp here was Slate — a blue-cast near-black
+       under a green accent, which is the hue clash that made it feel off. */
+    --bg: #101211;
+    --surface: #171918;
+    --surface-2: #202221;
+    --text: #eceeed;
+    --muted: #adb5b2;
+    --border: #272a29;
+    --border-strong: #63706b;
     --focus: #8ab4f8;
     --link: #9ec1ff;
 
@@ -129,11 +134,11 @@
     --rate-low-fg: #f2c97a;
     --rate-low-bg: #33260e;
 
-    --zero-fg: #b6bcc3;
-    --zero-bg: #24282d;
+    --zero-fg: #adb5b2;
+    --zero-bg: #202221;
 
-    --unknown-fg: #b6bcc3;
-    --unknown-bg: #24282d;
+    --unknown-fg: #adb5b2;
+    --unknown-bg: #202221;
 
     --chance-fg: #d3b6f5;
     --chance-bg: #241a35;
@@ -145,12 +150,12 @@
     --aging-bg: #33260e;
     --stale-fg: #f5b98a;
     --stale-bg: #38220f;
-    --dead-fg: #b0b6bd;
-    --dead-bg: #23272b;
+    --dead-fg: #adb5b2;
+    --dead-bg: #202221;
 
-    --chip-fg: #ccd2d8;
-    --chip-bg: #23272c;
-    --chip-border: #343a41;
+    --chip-fg: #c3cbc8;
+    --chip-bg: #202221;
+    --chip-border: #373b39;
 
     --warn-fg: #f5c48f;
     --warn-bg: #2e2113;
