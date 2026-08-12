@@ -6,6 +6,7 @@
  * is served from https://harsh.bet/studies/ - a root-relative "/" would 404.
  */
 import '@/styles/global.css';
+import VaultControl from '@/components/VaultControl.astro';
 
 interface Props {
   title: string;
@@ -50,6 +51,7 @@ const fetchedLabel =
   <body>
     <a class="skip-link" href="#results">Skip to results</a>
     <slot name="header" />
+    <VaultControl />
     <slot />
     <footer class="site-footer">
       <div class="wrap">

@@ -181,7 +181,7 @@ jobs:
             process.stdout.write(`${n(d.added)} added, ${n(d.removed)} removed, ${n(d.changed)} changed`);
           ')
 
-          git commit -m "data: refresh snapshot (${COUNT} studies; ${SUMMARY})" \
+          git commit -m "chore(data): refresh snapshot (${COUNT} studies; ${SUMMARY})" \
                      -m "Automated by .github/workflows/refresh.yml."
 
           # Push once, then rebase and retry if a human landed a commit in the

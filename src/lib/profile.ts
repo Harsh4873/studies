@@ -1,23 +1,20 @@
 /**
- * LOCAL-ONLY user profile storage.
+ * LOCAL-FIRST user profile storage.
  *
  * ============================================================================
  * PRIVACY CONTRACT - read this before touching anything in here.
  * ============================================================================
  * The values in a `UserProfile` are self-reported health facts: pregnancy,
- * seizure history, cardiovascular disease, MRI implant status. This module is
- * the ONLY place they are ever written, and the only place they are ever
- * written TO is `window.localStorage` on the user's own machine.
+ * seizure history, cardiovascular disease, MRI implant status. This module
+ * owns the defensive browser copy. `personal-state.ts` mirrors changes into
+ * the private owner vault only after a provisioned Google account signs in.
  *
- *   - There is no `fetch`, no `navigator.sendBeacon`, no `<img>` ping, no
- *     analytics call, and no query-string round trip anywhere in this file,
- *     and there must never be one.
- *   - The site is a static build (`output: 'static'`), so there is no server
- *     to receive the data even if someone tried.
- *   - The one place profile data leaves the browser is a `mailto:` body the
- *     user explicitly composes and explicitly sends from their own mail
- *     client - see `src/lib/mailto.ts`. That is a user action, not a
- *     transmission by this site.
+ *   - There is no analytics, beacon, tracking pixel, or query-string round
+ *     trip anywhere in this file.
+ *   - The public listing remains static. The only automatic network path for
+ *     this profile is the authenticated Firestore document in `vault-sync.ts`.
+ *   - A mailto body is still composed only after an explicit user action; see
+ *     `src/lib/mailto.ts`.
  *
  * ============================================================================
  * SSR CONTRACT

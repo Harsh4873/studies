@@ -1179,3 +1179,41 @@ body {
   font-feature-settings: 'tnum' 1;
   letter-spacing: -0.02em;
 }
+
+/* Private owner-vault status is visible without competing with the listing. */
+.vault-strip {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.vault-strip-inner,
+.study-state-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.vault-strip-inner {
+  min-height: 3rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.vault-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.vault-actions,
+.study-state-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.study-state-actions {
+  justify-content: flex-start;
+  margin-top: 0.875rem;
+}
+.study-state-actions button[aria-pressed='true'] {
+  border-color: var(--money-border);
+  background: var(--money-bg);
+  color: var(--money-fg);
+}

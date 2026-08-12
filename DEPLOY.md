@@ -1,8 +1,9 @@
 # Deploying to `harsh.bet/studies`
 
-This is a fully static site. There is no server, no database, and no runtime
-secret — `npm run build` emits a directory of files and the whole deploy is
-"put these files where that URL points".
+This is a static GitHub Pages site with optional client-side Firebase sync for
+the private owner vault. There is no application server and no runtime secret:
+`npm run build` emits files, while the browser bundle contains only Firebase's
+public project configuration.
 
 It is deployed as a **GitHub Pages project site**, and one structural fact
 does most of the work: the user site (`harsh4873.github.io`) carries the
@@ -49,7 +50,7 @@ by `trailingSlash` — they are served at exactly those two paths.
 | Output directory | `dist` |
 | Install command | `npm ci` |
 | Network at build time | Wanted, not required. `fetch:data` falls back to `fixtures/arv-snapshot.json` and exits 0 if `research.tamu.edu` is unreachable, so a TAMU outage produces a stale deploy rather than a failed one. Check the build log for `source FIXTURE  <-- STALE DATA`. |
-| Runtime env vars | **None.** Nothing in the browser bundle reads a secret, and nothing calls an API at runtime — the upstream registry sends no `Access-Control-Allow-Origin`, so all fetching is build-time by necessity. |
+| Runtime env vars | **None.** The browser bundle reads no secret. Public study data stays build-time-only; authenticated personal state uses Firebase at runtime. |
 
 ---
 

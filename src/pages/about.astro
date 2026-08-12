@@ -5,7 +5,7 @@
  * This page exists to make three things impossible to misunderstand:
  *   1. This site is not Texas A&M and has nothing to do with Texas A&M.
  *   2. The pay figures are a machine's reading of free text and can be wrong.
- *   3. Nothing anyone types into the profile form leaves their browser.
+ *   3. Profile data is local-first and enters only the signed-in private vault.
  *
  * The snapshot timestamp and study counts are read from the build data rather
  * than written by hand, so the freshness claim on this page cannot drift away
@@ -100,7 +100,8 @@ const rated = snapshot.studies.filter((s) => s.effectiveHourly !== null).length;
         <p class="mt-2">
           That API sends no CORS header, so your browser could not read it directly even if this
           site asked it to. All of it is fetched server-side when the site is built and baked into
-          static files. Your browser talks to this site and to nothing else.
+          static files. At runtime, only an explicit private-vault sign-in talks to Firebase;
+          the public study feed never fetches upstream data from your browser.
         </p>
       </section>
 
@@ -171,20 +172,21 @@ const rated = snapshot.studies.filter((s) => s.effectiveHourly !== null).length;
       </section>
 
       <section class="mt-8">
-        <h2 class="text-lg font-bold">Your details never leave your browser</h2>
+        <h2 class="text-lg font-bold">Your details are private and local-first</h2>
         <p class="mt-2">
           The optional form asks about age, handedness, MRI safety, cardiovascular conditions,
           pregnancy, seizure history, sex, fasting, and student status. Those answers are stored in
-          your browser's local storage and nowhere else.
+          your browser's local storage. If you explicitly sign in with either provisioned Google
+          account, the same private owner-vault record follows you across devices.
         </p>
         <ul class="mt-2 list-disc space-y-1 pl-5">
-          <li>There is no account, no database, and no server to send them to — the site is static files.</li>
+          <li>The public study index is static. Firebase stores only the signed-in owner's private profile and study preferences.</li>
           <li>There is no analytics, no tracking pixel, and no third-party script on any page.</li>
           <li>
-            The one time any of it goes anywhere is a draft email you write yourself and send from
-            your own mail client, and you see the full text before you send it.
+            Contact drafts are still created only in your mail client, and you see the full text
+            before you send it.
           </li>
-          <li>"Clear my details" deletes the stored record outright, as does clearing site data.</li>
+          <li>"Clear my details" clears the profile locally and updates the synced private record.</li>
         </ul>
       </section>
 

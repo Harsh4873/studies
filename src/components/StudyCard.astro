@@ -315,6 +315,11 @@ const searchText = scrubEmails(
     )
   }
 
+  <div class="study-state-actions" aria-label="Personal study actions">
+    <button class="btn" type="button" data-study-action="save" aria-pressed="false">Save</button>
+    <button class="btn" type="button" data-study-action="dismiss" aria-pressed="false">Dismiss</button>
+  </div>
+
   <p class="card-foot">
     <span>{study.irbNumber ?? 'No IRB number'}</span>
     <a class="go" href={study.url} rel="noopener external">

@@ -115,8 +115,16 @@ const HOUR_STEPS = [
     <label class="switch-text" for="f-eligible">
       Hide studies I am not eligible for
       <span class="switch-hint" id="f-eligible-hint">
-        Uses the screening profile saved in this browser. Nothing is uploaded.
+        Uses your private local-first screening profile; it syncs only after owner-vault sign-in.
       </span>
+    </label>
+  </div>
+
+  <div class="switch-row">
+    <input type="checkbox" id="f-dismissed" name="dismissed" />
+    <label class="switch-text" for="f-dismissed">
+      Show dismissed studies
+      <span class="switch-hint">Dismissed listings stay recoverable and sync with your private vault.</span>
     </label>
   </div>
 

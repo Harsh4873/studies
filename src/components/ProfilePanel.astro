@@ -129,11 +129,12 @@ const QUESTIONS: Question[] = [
   <div class="border-t border-gray-200 px-4 py-4">
     <!-- Privacy statement. Deliberately first, deliberately not small print. -->
     <div class="mb-5 rounded-md border border-brand-500/40 bg-brand-50 p-3 text-sm">
-      <p class="font-semibold">This stays on your device.</p>
+      <p class="font-semibold">Private, local-first details.</p>
       <p class="mt-1">
-        Your answers are saved in this browser's local storage and nowhere else. There is no
-        account, no server to send them to, and no analytics on this page. Clearing your browser
-        data, or pressing <em>Clear my details</em> below, erases them permanently.
+        Your answers are saved in this browser. If you sign in with one of the two provisioned
+        Google accounts, they also sync to the same private Firebase owner vault so you do not
+        have to re-enter them on another device. There is no analytics on this page. Pressing
+        <em>Clear my details</em> clears the profile locally and from the synced record.
       </p>
       <p class="mt-2">
         What you enter is only used to sort listings into "looks like a fit", "probably not", and
@@ -145,8 +146,8 @@ const QUESTIONS: Question[] = [
 
     <noscript>
       <p class="mb-4 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm">
-        This form needs JavaScript, because saving and matching both happen entirely in your
-        browser. Without it every listing is shown unfiltered, which is the safe default.
+        This form needs JavaScript. Without it every listing is shown unfiltered, which is the
+        safe default.
       </p>
     </noscript>
 
@@ -314,7 +315,7 @@ const QUESTIONS: Question[] = [
         status.textContent = hasStorage()
           ? n === 0
             ? 'Nothing saved yet.'
-            : 'Saved in this browser only.'
+            : 'Saved locally; signed-in owner-vault sync runs separately.'
           : 'This browser is blocking local storage, so answers last until you leave the page.';
       }
     };

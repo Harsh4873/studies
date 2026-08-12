@@ -41,7 +41,7 @@ src/pages/              Astro routes (static output)
 src/styles/global.css   Tailwind v4 CSS-first theme tokens
 ```
 
-**Data flows one way, at build time only:**
+**Public listing data flows one way, at build time only:**
 
 ```
 research.tamu.edu API  ──(node, build time)──>  src/data/*.json
@@ -55,6 +55,12 @@ The critical constraint: **the upstream API sends no
 blocked by CORS. Fetching therefore happens server-side in Node during the
 build and the results are baked into static HTML. Do not add client-side calls
 to `research.tamu.edu`; they will fail in every browser.
+
+Personal state is separate from that public pipeline. The profile, saved and
+dismissed ids, and filters remain local-first. After a provisioned Google
+sign-in, Firebase mirrors that private state into the shared harsh.bet owner
+vault so it follows the owner across devices; it never enters the public
+snapshot or refresh workflow.
 
 (Upstream does send `Access-Control-Expose-Headers: X-WP-Total,
 X-WP-TotalPages, Link`. `per_page=100` returns all 86 records in a single page;

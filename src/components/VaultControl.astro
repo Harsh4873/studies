@@ -1,0 +1,47 @@
+<section class="vault-strip" aria-label="Private sync" data-vault-control>
+  <div class="wrap wrap-wide vault-strip-inner">
+    <p class="vault-status" data-vault-status role="status" aria-live="polite">
+      Checking private sync…
+    </p>
+    <div class="vault-actions">
+      <button class="btn" type="button" data-vault-sign-in hidden>Sign in with Google</button>
+      <button class="btn" type="button" data-vault-sign-out hidden>Sign out</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  import {
+    signInToStudiesVault,
+    signOutOfStudiesVault,
+    startStudiesVaultSync,
+    subscribeVaultStatus,
+  } from '@/lib/vault-sync.ts';
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-vault-control]')) {
+    const status = root.querySelector<HTMLElement>('[data-vault-status]');
+    const signIn = root.querySelector<HTMLButtonElement>('[data-vault-sign-in]');
+    const signOut = root.querySelector<HTMLButtonElement>('[data-vault-sign-out]');
+
+    subscribeVaultStatus((next) => {
+      if (!status) return;
+      signIn?.toggleAttribute('hidden', next.state !== 'signed-out' && next.state !== 'error');
+      signOut?.toggleAttribute('hidden', !('email' in next && Boolean(next.email)));
+      if (next.state === 'connecting') status.textContent = 'Checking private sync…';
+      if (next.state === 'signed-out') status.textContent = 'Sign in to keep your profile, saved studies, dismissals, and filters on both approved accounts.';
+      if (next.state === 'syncing') status.textContent = `Syncing private Studies data${next.email ? ` for ${next.email}` : ''}…`;
+      if (next.state === 'synced') status.textContent = `Private Studies data is synced${next.email ? ` for ${next.email}` : ''}.`;
+      if (next.state === 'error') status.textContent = next.message;
+    });
+
+    signIn?.addEventListener('click', () => {
+      signIn.disabled = true;
+      void signInToStudiesVault().catch((error: unknown) => {
+        if (status) status.textContent = error instanceof Error ? error.message : 'Google sign-in did not finish.';
+      }).finally(() => { signIn.disabled = false; });
+    });
+    signOut?.addEventListener('click', () => void signOutOfStudiesVault());
+  }
+
+  startStudiesVaultSync();
+</script>

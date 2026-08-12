@@ -269,6 +269,16 @@ const description = `${live.length} currently posted paid research studies at Te
    *    out loud instead of letting them vanish.
    */
   import { checkEligibility } from '@/lib/parse-eligibility.ts';
+  import {
+    DEFAULT_STUDIES_FILTERS,
+    loadStudiesState,
+    subscribeStudiesState,
+    toggleStudyDismissed,
+    toggleStudySaved,
+    updateStudiesFilters,
+    type StudiesFilters,
+    type StudiesPersonalState,
+  } from '@/lib/personal-state.ts';
   import * as profileModule from '@/lib/profile.ts';
   import type { ParsedEligibility, UserProfile } from '@/types.ts';
 
@@ -291,6 +301,7 @@ const description = `${live.length} currently posted paid research studies at Te
   const modeSel = $<HTMLSelectElement>('f-mode');
   const sortSel = $<HTMLSelectElement>('f-sort');
   const eligibleBox = $<HTMLInputElement>('f-eligible');
+  const dismissedBox = $<HTMLInputElement>('f-dismissed');
   const eligibleHint = $<HTMLElement>('f-eligible-hint');
   const tagBox = $<HTMLElement>('f-tags');
   const summary = $<HTMLElement>('f-summary');
@@ -314,6 +325,21 @@ const description = `${live.length} currently posted paid research studies at Te
   }
 
   const selectedTags = new Set<string>();
+  let personalState = loadStudiesState();
+
+  function paintPersonalState(state: StudiesPersonalState): void {
+    for (const card of cards) {
+      const id = card.dataset.id ?? '';
+      const saved = state.saved.includes(id);
+      const dismissed = state.dismissed.includes(id);
+      card.classList.toggle('is-saved', saved);
+      card.classList.toggle('is-dismissed', dismissed);
+      card.querySelector<HTMLElement>('[data-study-action="save"]')
+        ?.setAttribute('aria-pressed', saved ? 'true' : 'false');
+      card.querySelector<HTMLElement>('[data-study-action="dismiss"]')
+        ?.setAttribute('aria-pressed', dismissed ? 'true' : 'false');
+    }
+  }
 
   /** '' for an absent numeric data attribute, so `Number('')` is never used. */
   const num = (v: string | undefined): number | null => {
@@ -397,12 +423,12 @@ const description = `${live.length} currently posted paid research studies at Te
 
     if (eligibleBox !== null) {
       eligibleBox.disabled = !profileAnswered;
-      if (!profileAnswered) eligibleBox.checked = false;
+      eligibleBox.checked = profileAnswered && personalState.filters.eligibleOnly;
     }
     if (eligibleHint !== null) {
       eligibleHint.textContent = profileAnswered
         ? 'Based on the screening profile saved in this browser. Studies that cannot be checked stay visible.'
-        : 'Answer the screening questions first. Nothing is uploaded; the answers stay in this browser.';
+        : 'Answer the screening questions first. They stay local unless you sign in to the private owner vault.';
     }
     apply();
   }
@@ -412,6 +438,9 @@ const description = `${live.length} currently posted paid research studies at Te
   let hiddenForUnknown = 0;
 
   function matches(card: HTMLElement, words: string[], count: boolean): boolean {
+    if (personalState.dismissed.includes(card.dataset.id ?? '') && dismissedBox?.checked !== true) {
+      return false;
+    }
     const haystack = card.dataset.search ?? '';
     for (const w of words) if (!haystack.includes(w)) return false;
 
@@ -530,6 +559,42 @@ const description = `${live.length} currently posted paid research studies at Te
     sortList($('list-expired'), mode);
   }
 
+  function readFilters(): StudiesFilters {
+    return {
+      query: qInput?.value ?? '',
+      minRate: rateSel?.value ?? '0',
+      minTotal: totalSel?.value ?? '0',
+      maxHours: hoursSel?.value ?? '',
+      mode: (modeSel?.value === 'online' || modeSel?.value === 'inperson') ? modeSel.value : 'any',
+      sort: (sortSel?.value === 'total' || sortSel?.value === 'time' || sortSel?.value === 'new')
+        ? sortSel.value
+        : 'rate',
+      tags: [...selectedTags].sort(),
+      eligibleOnly: eligibleBox?.checked === true,
+      showDismissed: dismissedBox?.checked === true,
+    };
+  }
+
+  function persistFilters(): void {
+    personalState = updateStudiesFilters(readFilters());
+  }
+
+  function restoreFilters(filters: StudiesFilters): void {
+    if (qInput !== null) qInput.value = filters.query;
+    if (rateSel !== null) rateSel.value = filters.minRate;
+    if (totalSel !== null) totalSel.value = filters.minTotal;
+    if (hoursSel !== null) hoursSel.value = filters.maxHours;
+    if (modeSel !== null) modeSel.value = filters.mode;
+    if (sortSel !== null) sortSel.value = filters.sort;
+    if (eligibleBox !== null) eligibleBox.checked = filters.eligibleOnly && !eligibleBox.disabled;
+    if (dismissedBox !== null) dismissedBox.checked = filters.showDismissed;
+    selectedTags.clear();
+    for (const tag of filters.tags) selectedTags.add(tag);
+    for (const btn of tagBox?.querySelectorAll<HTMLButtonElement>('[data-tag]') ?? []) {
+      btn.setAttribute('aria-pressed', selectedTags.has(btn.dataset.tag ?? '') ? 'true' : 'false');
+    }
+  }
+
   function reset(): void {
     if (qInput !== null) qInput.value = '';
     if (rateSel !== null) rateSel.value = '0';
@@ -538,10 +603,12 @@ const description = `${live.length} currently posted paid research studies at Te
     if (modeSel !== null) modeSel.value = 'any';
     if (sortSel !== null) sortSel.value = 'rate';
     if (eligibleBox !== null) eligibleBox.checked = false;
+    if (dismissedBox !== null) dismissedBox.checked = false;
     selectedTags.clear();
     for (const btn of tagBox?.querySelectorAll<HTMLButtonElement>('[data-tag]') ?? []) {
       btn.setAttribute('aria-pressed', 'false');
     }
+    personalState = updateStudiesFilters({ ...DEFAULT_STUDIES_FILTERS, tags: [] });
     resort();
     apply();
   }
@@ -549,11 +616,18 @@ const description = `${live.length} currently posted paid research studies at Te
   // -- wiring ---------------------------------------------------------------
 
   form?.addEventListener('submit', (e) => e.preventDefault());
-  qInput?.addEventListener('input', apply);
-  for (const el of [rateSel, totalSel, hoursSel, modeSel, eligibleBox]) {
-    el?.addEventListener('change', apply);
+  qInput?.addEventListener('input', () => {
+    persistFilters();
+    apply();
+  });
+  for (const el of [rateSel, totalSel, hoursSel, modeSel, eligibleBox, dismissedBox]) {
+    el?.addEventListener('change', () => {
+      persistFilters();
+      apply();
+    });
   }
   sortSel?.addEventListener('change', () => {
+    persistFilters();
     resort();
     apply();
   });
@@ -565,11 +639,25 @@ const description = `${live.length} currently posted paid research studies at Te
     btn.setAttribute('aria-pressed', on ? 'false' : 'true');
     if (on) selectedTags.delete(tag);
     else selectedTags.add(tag);
+    persistFilters();
     apply();
   });
   for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-reset], #f-reset')) {
     btn.addEventListener('click', reset);
   }
+
+  document.getElementById('results')?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest<HTMLButtonElement>('[data-study-action]');
+    const card = button?.closest<HTMLElement>('[data-study]');
+    const id = card?.dataset.id;
+    if (!button || !id) return;
+    event.preventDefault();
+    personalState = button.dataset.studyAction === 'dismiss'
+      ? toggleStudyDismissed(id)
+      : toggleStudySaved(id);
+  });
 
   // Profile: read once, then follow it. Every call is guarded because this
   // module is owned elsewhere.
@@ -580,6 +668,16 @@ const description = `${live.length} currently posted paid research studies at Te
       return null;
     }
   }
+
+  restoreFilters(personalState.filters);
+  paintPersonalState(personalState);
+  subscribeStudiesState((next) => {
+    personalState = next;
+    restoreFilters(next.filters);
+    paintPersonalState(next);
+    resort();
+    apply();
+  });
 
   applyProfile(readProfile());
   try {

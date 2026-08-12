@@ -31,6 +31,11 @@ Do not force-push to `main`; leave unrelated dirty files out of the commit.
   `Access-Control-Allow-Origin` header; all data is baked in at build time.
 - Never let a plaintext contact address into `dist/`. CI, the deploy, and the
   refresh workflow all grep the built output and fail the run if one appears.
+- Keep participant-recruitment listings in Studies; Radar must not ingest or
+  publish this vertical.
+- Personal state is local-first and may sync only through the canonical shared
+  owner vault after membership validation. Never hard-code account identifiers,
+  emails, or vault ids, and never feed private state into the public snapshot.
 - After any parser change, re-run the row-by-row audit against the raw
   strings (`src/lib/__audit__.md`, step 4 in `HANDOFF.md`). It has caught
   what 800+ passing tests missed.
