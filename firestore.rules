@@ -1015,8 +1015,13 @@ service cloud.firestore {
       allow create: if hasVaultAccess(vaultId) && isValidGoalsVault();
       allow update: if hasVaultAccess(vaultId)
         && isValidGoalsVault()
-        && request.resource.data.updatedAtMs >= resource.data.updatedAtMs;
+        && request.resource.data.updatedAtMs > resource.data.updatedAtMs;
       allow delete: if false;
+    }
+
+    match /goals_baselines/{vaultId} {
+      allow read: if hasVaultAccess(vaultId);
+      allow write: if false;
     }
 
     match /{document=**} {
