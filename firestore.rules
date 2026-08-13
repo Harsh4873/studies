@@ -917,7 +917,8 @@ service cloud.firestore {
         ])
         && request.resource.data.state.keys().hasOnly([
           'lastVisit', 'saved', 'dismissed', 'tracked', 'feedback',
-          'authors', 'companies', 'signalBias'
+          'authors', 'companies', 'signalBias', 'attending',
+          'preferredCategories', 'campusInterests', 'followedOrganizers'
         ])
         && request.resource.data.state.saved is list
         && request.resource.data.state.saved.size() <= 5000
@@ -933,6 +934,18 @@ service cloud.firestore {
         && request.resource.data.state.companies.size() <= 1000
         && request.resource.data.state.signalBias is map
         && request.resource.data.state.signalBias.size() <= 1000
+        && (!('attending' in request.resource.data.state)
+          || (request.resource.data.state.attending is list
+            && request.resource.data.state.attending.size() <= 5000))
+        && (!('preferredCategories' in request.resource.data.state)
+          || (request.resource.data.state.preferredCategories is list
+            && request.resource.data.state.preferredCategories.size() <= 100))
+        && (!('campusInterests' in request.resource.data.state)
+          || (request.resource.data.state.campusInterests is list
+            && request.resource.data.state.campusInterests.size() <= 1000))
+        && (!('followedOrganizers' in request.resource.data.state)
+          || (request.resource.data.state.followedOrganizers is list
+            && request.resource.data.state.followedOrganizers.size() <= 1000))
         && (request.resource.data.state.lastVisit == null
           || (request.resource.data.state.lastVisit is string
             && request.resource.data.state.lastVisit.size() <= 64))
@@ -947,6 +960,61 @@ service cloud.firestore {
       allow create: if hasVaultAccess(vaultId) && isValidRadarVault();
       allow update: if hasVaultAccess(vaultId)
         && isValidRadarVault()
+        && request.resource.data.updatedAtMs >= resource.data.updatedAtMs;
+      allow delete: if false;
+    }
+
+    // Goals (encrypted personal campaign vault) --------------------
+    function isValidGoalsVault() {
+      let data = request.resource.data;
+      let envelope = data.envelope;
+      return data.keys().hasAll([
+          'schemaVersion', 'envelope', 'updatedAt', 'updatedAtMs',
+          'clientId', 'syncedAt'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion', 'envelope', 'updatedAt', 'updatedAtMs',
+          'clientId', 'syncedAt'
+        ])
+        && data.schemaVersion == 1
+        && data.updatedAt is string
+        && data.updatedAt.size() <= 64
+        && data.updatedAtMs is int
+        && data.updatedAtMs > 0
+        && data.clientId is string
+        && data.clientId.size() > 0
+        && data.clientId.size() <= 128
+        && data.syncedAt == request.time
+        && envelope is map
+        && envelope.keys().hasAll([
+          'format', 'version', 'algorithm', 'kdf', 'iterations',
+          'salt', 'iv', 'ciphertext'
+        ])
+        && envelope.keys().hasOnly([
+          'format', 'version', 'algorithm', 'kdf', 'iterations',
+          'salt', 'iv', 'ciphertext'
+        ])
+        && envelope.format == 'goals-vault'
+        && envelope.version == 1
+        && envelope.algorithm == 'AES-GCM'
+        && envelope.kdf == 'PBKDF2-SHA-256'
+        && envelope.iterations == 310000
+        && envelope.salt is string
+        && envelope.salt.size() > 0
+        && envelope.salt.size() <= 128
+        && envelope.iv is string
+        && envelope.iv.size() > 0
+        && envelope.iv.size() <= 64
+        && envelope.ciphertext is string
+        && envelope.ciphertext.size() > 0
+        && envelope.ciphertext.size() <= 900000;
+    }
+
+    match /goals_vaults/{vaultId} {
+      allow read: if hasVaultAccess(vaultId);
+      allow create: if hasVaultAccess(vaultId) && isValidGoalsVault();
+      allow update: if hasVaultAccess(vaultId)
+        && isValidGoalsVault()
         && request.resource.data.updatedAtMs >= resource.data.updatedAtMs;
       allow delete: if false;
     }
