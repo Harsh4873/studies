@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-08-14T00:00:24.076Z",
+  "fetchedAt": "2026-08-14T11:58:49.074Z",
   "totalFromHeader": 89,
   "studies": [
     {
@@ -2914,7 +2914,7 @@
       },
       "effectiveHourly": 10.91,
       "isExpired": false,
-      "staleness": "aging",
+      "staleness": "stale",
       "tags": [
         "in-person",
         "survey",
