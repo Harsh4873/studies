@@ -1,6 +1,6 @@
 {
-  "fetchedAt": "2026-08-12T18:45:23.418Z",
-  "totalFromHeader": 86,
+  "fetchedAt": "2026-08-14T00:00:24.076Z",
+  "totalFromHeader": 89,
   "studies": [
     {
       "id": "4591",
@@ -999,104 +999,6 @@
         "interview",
         "clinical",
         "hci"
-      ],
-      "duplicateIds": [],
-      "duplicateOf": null
-    },
-    {
-      "id": "4632",
-      "slug": "x-grant-pos-affect-intervention",
-      "title": "X-Grant Pos Affect Intervention",
-      "summary": "We are developing and testing the efficacy of an in-person positive affect treatment for anxiety and depression. Interested individuals aged 18 – 65 may indicate their interest in participating via the following link…",
-      "url": "https://research.tamu.edu/study/x-grant-pos-affect-intervention/",
-      "piName": "PI: Annmarie MacNamara, Ph.D.",
-      "contactName": "Annmarie MacNamara, Ph.D.",
-      "contactEmail": "maclab@tamu.edu",
-      "contactPhone": "(979) 429-3674",
-      "irbNumber": "IRB2021-0792DCR",
-      "irbApprovalDate": "2024-05-22T21:32:43.000Z",
-      "expirationDate": "2025-01-02T00:00:00.000Z",
-      "recruitmentStartDate": "2024-10-02T21:32:50.000Z",
-      "lifecycleMonths": 3,
-      "postedDate": "2024-12-19T03:33:47.000Z",
-      "modifiedDate": "2024-12-19T03:33:47.000Z",
-      "categoryIds": [
-        37,
-        39
-      ],
-      "locationIds": [
-        53,
-        54
-      ],
-      "sessionTypeIds": [
-        60,
-        62
-      ],
-      "topicIds": [
-        34,
-        36
-      ],
-      "compensation": {
-        "guaranteedMin": null,
-        "guaranteedMax": null,
-        "raffleMax": null,
-        "raffleOnly": false,
-        "isHourlyRate": true,
-        "hourlyMin": 17.5,
-        "hourlyMax": 22.5,
-        "currencyKind": "mixed",
-        "perVisit": null,
-        "visitCount": null,
-        "completionBonus": null,
-        "hasNonCashPerk": false,
-        "sonaCreditOption": true,
-        "raw": "Participants will have the option to select course credit compensation via SONA or financial compensation. Reimbursement amounts will vary depending on the study group a participant belongs to, the length of their visit, and which study visit they are completing. Rates of payment for each group are as follows: Baseline control group – Visit 1: $17.5/hr Inactive control group – Visit 1: $17.5/hr; Visit 2: $20/hr In-person intervention &amp; active control groups: Visit 1: $17.50/hr; Visit 2: $20/hr; Visit 3: $22.50/hr Participants who complete a reward-based Doors task will receive up to an additional $8.00. Participants who complete the 3-month follow-up questionnaires will be compensated $25 for their time.",
-        "confidence": "low",
-        "notes": [
-          "hourly rate given as a range: $17.5-$22.5/hr",
-          "6 different hourly rates stated; rate depends on group/visit",
-          "hourly rate only; study total depends on session length",
-          "1 non-hourly amount(s) present but not summed into a total",
-          "up to $8 more is contingent on task performance and is excluded from guaranteed pay",
-          "course credit (SONA) offered as an option",
-          "long free-text description; parsed values may miss clauses"
-        ]
-      },
-      "duration": {
-        "totalHoursMin": 3,
-        "totalHoursMax": 25,
-        "sessionCount": null,
-        "spanWeeks": 2,
-        "raw": "Duration of study involvement will range from three to 25 hours spanning anywhere from one day to two-weeks of participation. The time commitment for participating will depend on the study group to a which the participant belongs. A detailed breakdown of time requirements by group can be found below: Baseline control group: 3 hrs in-person, plus 1 hr online follow up assessment Inactive control group: 6 hrs in person, plus 1 hr online follow up assessment In-person intervention &amp; active control groups: 8 hrs in-person, 6 to 16 hours in between visits completing study activities, plus 1 hr online follow up assessment",
-        "confidence": "high"
-      },
-      "eligibility": {
-        "minAge": 18,
-        "maxAge": 65,
-        "requiresRightHanded": false,
-        "requiresMriSafe": false,
-        "requiresFasting": false,
-        "excludesCardiovascular": false,
-        "excludesPregnancy": false,
-        "excludesSeizure": false,
-        "excludesNeurological": true,
-        "requiresSpecificCondition": null,
-        "requiresParentOrChild": false,
-        "sexRestriction": null,
-        "flags": [
-          "excludes neurological conditions",
-          "SONA / subject-pool participation offered"
-        ]
-      },
-      "effectiveHourly": 22.5,
-      "isExpired": true,
-      "staleness": "expired",
-      "tags": [
-        "online",
-        "in-person",
-        "eeg",
-        "survey",
-        "clinical"
       ],
       "duplicateIds": [],
       "duplicateOf": null
@@ -6090,92 +5992,6 @@
       "duplicateOf": null
     },
     {
-      "id": "11319",
-      "slug": "how-people-think-about-people-and-behaviors-2",
-      "title": "How People Think About People and Behaviors",
-      "summary": "This study is interested in understanding how a sorting task might influence how people think about other people and their behaviors.",
-      "url": "https://research.tamu.edu/study/how-people-think-about-people-and-behaviors-2/",
-      "piName": "PI: Allegra Midgette, Ph.D.",
-      "contactName": "Mirka Dirzo",
-      "contactEmail": "mdlab@tamu.e",
-      "contactPhone": null,
-      "irbNumber": "STUDY2026-0257",
-      "irbApprovalDate": "2026-03-04T16:32:42.000Z",
-      "expirationDate": null,
-      "recruitmentStartDate": null,
-      "lifecycleMonths": 6,
-      "postedDate": "2026-03-16T21:33:13.000Z",
-      "modifiedDate": "2026-03-16T21:33:13.000Z",
-      "categoryIds": [
-        39
-      ],
-      "locationIds": [
-        59
-      ],
-      "sessionTypeIds": [
-        62
-      ],
-      "topicIds": [
-        36
-      ],
-      "compensation": {
-        "guaranteedMin": null,
-        "guaranteedMax": null,
-        "raffleMax": null,
-        "raffleOnly": false,
-        "isHourlyRate": false,
-        "hourlyMin": null,
-        "hourlyMax": null,
-        "currencyKind": "unknown",
-        "perVisit": null,
-        "visitCount": null,
-        "completionBonus": null,
-        "hasNonCashPerk": false,
-        "sonaCreditOption": false,
-        "raw": "",
-        "confidence": "low",
-        "notes": [
-          "no compensation stated in the listing"
-        ]
-      },
-      "duration": {
-        "totalHoursMin": 0.75,
-        "totalHoursMax": 1,
-        "sessionCount": null,
-        "spanWeeks": null,
-        "raw": "45-60 minutes",
-        "confidence": "high"
-      },
-      "eligibility": {
-        "minAge": 18,
-        "maxAge": null,
-        "requiresRightHanded": false,
-        "requiresMriSafe": false,
-        "requiresFasting": false,
-        "excludesCardiovascular": false,
-        "excludesPregnancy": false,
-        "excludesSeizure": false,
-        "excludesNeurological": false,
-        "requiresSpecificCondition": null,
-        "requiresParentOrChild": false,
-        "sexRestriction": null,
-        "flags": [
-          "English fluency required"
-        ]
-      },
-      "effectiveHourly": null,
-      "isExpired": false,
-      "staleness": "fresh",
-      "tags": [
-        "online",
-        "survey"
-      ],
-      "duplicateIds": [
-        "11317"
-      ],
-      "duplicateOf": null
-    },
-    {
       "id": "11321",
       "slug": "evaluating-changes-in-brain-functional-networks-during-menopause-2",
       "title": "Evaluating changes in brain functional networks during menopause",
@@ -6957,6 +6773,271 @@
       "staleness": "fresh",
       "tags": [
         "online"
+      ],
+      "duplicateIds": [],
+      "duplicateOf": null
+    },
+    {
+      "id": "13591",
+      "slug": "how-people-think-about-people-and-behaviors-4",
+      "title": "How People Think About People and Behaviors",
+      "summary": "This study is interested in understanding how people evaluate each other and think about their own behaviors.",
+      "url": "https://research.tamu.edu/study/how-people-think-about-people-and-behaviors-4/",
+      "piName": "PI: Allegra Midgette, Ph.D.",
+      "contactName": "Moral Development Lab",
+      "contactEmail": "mdlab@tamu.edu",
+      "contactPhone": null,
+      "irbNumber": "STUDY2026-0257",
+      "irbApprovalDate": "2026-03-04T13:41:11.000Z",
+      "expirationDate": null,
+      "recruitmentStartDate": null,
+      "lifecycleMonths": 6,
+      "postedDate": "2026-08-13T18:41:53.000Z",
+      "modifiedDate": "2026-08-13T18:41:53.000Z",
+      "categoryIds": [
+        39
+      ],
+      "locationIds": [
+        59
+      ],
+      "sessionTypeIds": [
+        62
+      ],
+      "topicIds": [
+        36
+      ],
+      "compensation": {
+        "guaranteedMin": null,
+        "guaranteedMax": null,
+        "raffleMax": null,
+        "raffleOnly": false,
+        "isHourlyRate": false,
+        "hourlyMin": null,
+        "hourlyMax": null,
+        "currencyKind": "unknown",
+        "perVisit": null,
+        "visitCount": null,
+        "completionBonus": null,
+        "hasNonCashPerk": false,
+        "sonaCreditOption": false,
+        "raw": "",
+        "confidence": "low",
+        "notes": [
+          "no compensation stated in the listing"
+        ]
+      },
+      "duration": {
+        "totalHoursMin": 0.75,
+        "totalHoursMax": 1,
+        "sessionCount": null,
+        "spanWeeks": null,
+        "raw": "45-60 minutes",
+        "confidence": "high"
+      },
+      "eligibility": {
+        "minAge": 18,
+        "maxAge": null,
+        "requiresRightHanded": false,
+        "requiresMriSafe": false,
+        "requiresFasting": false,
+        "excludesCardiovascular": false,
+        "excludesPregnancy": false,
+        "excludesSeizure": false,
+        "excludesNeurological": false,
+        "requiresSpecificCondition": null,
+        "requiresParentOrChild": false,
+        "sexRestriction": null,
+        "flags": [
+          "English fluency required"
+        ]
+      },
+      "effectiveHourly": null,
+      "isExpired": false,
+      "staleness": "fresh",
+      "tags": [
+        "online",
+        "survey"
+      ],
+      "duplicateIds": [
+        "11317",
+        "11319",
+        "13589"
+      ],
+      "duplicateOf": null
+    },
+    {
+      "id": "13593",
+      "slug": "effect-of-viewing-embodiment-and-interaction-on-spatial-perception-cognition-and-action-in-xr",
+      "title": "Effect of Viewing, Embodiment, and Interaction on Spatial Perception, Cognition, and Action in XR",
+      "summary": "This study investigates how affordance types, viewing conditions, and multisensory cues affect spatial judgment during real-XR mismatches. It also examines how mixed-reality visual manipulation alters perception of affordance, and how distractions influence…",
+      "url": "https://research.tamu.edu/study/effect-of-viewing-embodiment-and-interaction-on-spatial-perception-cognition-and-action-in-xr/",
+      "piName": "PI: Sabarish Babu Ph.D.",
+      "contactName": "Ignatius Alex Wijayanto",
+      "contactEmail": "isax@tamu.edu",
+      "contactPhone": null,
+      "irbNumber": "STUDY2026-0710",
+      "irbApprovalDate": "2026-07-20T13:47:03.000Z",
+      "expirationDate": null,
+      "recruitmentStartDate": null,
+      "lifecycleMonths": 3,
+      "postedDate": "2026-08-13T18:47:46.000Z",
+      "modifiedDate": "2026-08-13T18:47:46.000Z",
+      "categoryIds": [
+        37,
+        39
+      ],
+      "locationIds": [
+        54
+      ],
+      "sessionTypeIds": [
+        65
+      ],
+      "topicIds": [
+        35
+      ],
+      "compensation": {
+        "guaranteedMin": null,
+        "guaranteedMax": null,
+        "raffleMax": null,
+        "raffleOnly": false,
+        "isHourlyRate": false,
+        "hourlyMin": null,
+        "hourlyMax": null,
+        "currencyKind": "unknown",
+        "perVisit": null,
+        "visitCount": null,
+        "completionBonus": null,
+        "hasNonCashPerk": false,
+        "sonaCreditOption": false,
+        "raw": "",
+        "confidence": "low",
+        "notes": [
+          "no compensation stated in the listing"
+        ]
+      },
+      "duration": {
+        "totalHoursMin": 1.5,
+        "totalHoursMax": 1.5,
+        "sessionCount": 1,
+        "spanWeeks": null,
+        "raw": "One session study. The study duration will take approximately 90 minutes.",
+        "confidence": "high"
+      },
+      "eligibility": {
+        "minAge": 18,
+        "maxAge": null,
+        "requiresRightHanded": false,
+        "requiresMriSafe": false,
+        "requiresFasting": false,
+        "excludesCardiovascular": false,
+        "excludesPregnancy": true,
+        "excludesSeizure": true,
+        "excludesNeurological": true,
+        "requiresSpecificCondition": null,
+        "requiresParentOrChild": false,
+        "sexRestriction": null,
+        "flags": [
+          "excludes pregnancy / lactation",
+          "excludes seizure or epilepsy history",
+          "excludes neurological conditions"
+        ]
+      },
+      "effectiveHourly": null,
+      "isExpired": false,
+      "staleness": "fresh",
+      "tags": [
+        "in-person",
+        "vr-ar",
+        "survey",
+        "hci"
+      ],
+      "duplicateIds": [],
+      "duplicateOf": null
+    },
+    {
+      "id": "13595",
+      "slug": "neurobiological-and-cognitive-response-to-ulipristal-acetate-and-levonorgestrel",
+      "title": "Neurobiological and cognitive response to ulipristal acetate and levonorgestrel",
+      "summary": "Examine effects of hormonal intervention on learning and memory, as well as the relationship between psychophysiological (brain activity, heart rate, and skin conductance), personality, and emotional variables.",
+      "url": "https://research.tamu.edu/study/neurobiological-and-cognitive-response-to-ulipristal-acetate-and-levonorgestrel/",
+      "piName": "PI: Dr. Annmarie MacNamara, PhD",
+      "contactName": "Annmarie MacNamara, Ph.D",
+      "contactEmail": "amacnamara@tamu.edu",
+      "contactPhone": "(979) 845-3069",
+      "irbNumber": "STUDY2026-0596",
+      "irbApprovalDate": "2026-07-29T13:54:22.000Z",
+      "expirationDate": null,
+      "recruitmentStartDate": null,
+      "lifecycleMonths": 6,
+      "postedDate": "2026-08-13T18:55:04.000Z",
+      "modifiedDate": "2026-08-13T18:55:04.000Z",
+      "categoryIds": [
+        39
+      ],
+      "locationIds": [
+        54
+      ],
+      "sessionTypeIds": [
+        60
+      ],
+      "topicIds": [
+        34,
+        36
+      ],
+      "compensation": {
+        "guaranteedMin": null,
+        "guaranteedMax": null,
+        "raffleMax": null,
+        "raffleOnly": false,
+        "isHourlyRate": false,
+        "hourlyMin": null,
+        "hourlyMax": null,
+        "currencyKind": "unknown",
+        "perVisit": null,
+        "visitCount": null,
+        "completionBonus": null,
+        "hasNonCashPerk": false,
+        "sonaCreditOption": false,
+        "raw": "",
+        "confidence": "low",
+        "notes": [
+          "no compensation stated in the listing"
+        ]
+      },
+      "duration": {
+        "totalHoursMin": 7.5,
+        "totalHoursMax": 9,
+        "sessionCount": null,
+        "spanWeeks": null,
+        "raw": "Overall, participants will be engaged in the research for approximately 7.5-9 hours total.",
+        "confidence": "high"
+      },
+      "eligibility": {
+        "minAge": 18,
+        "maxAge": 40,
+        "requiresRightHanded": false,
+        "requiresMriSafe": true,
+        "requiresFasting": false,
+        "excludesCardiovascular": false,
+        "excludesPregnancy": true,
+        "excludesSeizure": false,
+        "excludesNeurological": false,
+        "requiresSpecificCondition": null,
+        "requiresParentOrChild": false,
+        "sexRestriction": "female",
+        "flags": [
+          "MRI / magnet safety screening",
+          "excludes pregnancy / lactation",
+          "open to female participants only"
+        ]
+      },
+      "effectiveHourly": null,
+      "isExpired": false,
+      "staleness": "fresh",
+      "tags": [
+        "in-person",
+        "mri",
+        "clinical"
       ],
       "duplicateIds": [],
       "duplicateOf": null
