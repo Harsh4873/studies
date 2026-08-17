@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-08-14T11:58:49.074Z",
+  "fetchedAt": "2026-08-17T23:38:31.442Z",
   "totalFromHeader": 89,
   "studies": [
     {
@@ -1613,7 +1613,7 @@
       },
       "effectiveHourly": 13.75,
       "isExpired": false,
-      "staleness": "aging",
+      "staleness": "stale",
       "tags": [
         "in-person",
         "eeg",
